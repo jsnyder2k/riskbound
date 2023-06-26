@@ -1,0 +1,1387 @@
+Sub priceREAPA2017(premSeek As Integer)
+Debug.Print "start"
+Call OptimizeCode_Begin
+'RATER ISSUES
+'Add a broker hit ratio somewhere
+'Are we adding a W/H box for W/H DBD? - Wasn't planning on it.  Or are you talking about the wind and hail checkbox in the DBB wording?
+'Put in the Max we can offer for sublimits in comments
+'Do a weighted average for the deductible buydown when doing minimum premiums - distribute the premium to each location
+
+Dim cwb, rwb As Worksheet
+Set cwb = Worksheets("Checklist")
+Set rwb = Worksheets("Pricing Tool")
+
+rwb.Activate
+
+If ActiveSheet.FilterMode Then
+    ActiveSheet.ShowAllData
+End If
+With Application
+        .MaxIterations = 250
+        .MaxChange = 0.01
+End With
+Dim oCell, cCell, tCell, groupCell, oValues, groupValues, topLeft, colorRow, _
+    numCell, exNum, a, b, o, rateRange, companyRange, catRange As Range
+Dim n As Long
+Dim nm As Name
+Dim locationPremium, scaleValue, companyPremium, catMultiple, catAdd, exposedDays, _
+    proRata, windProRata, exposedToEnd, exposedFromStart, daysNoWind, newLocationTIV, _
+    oldLocationTIV, startTime, secondsElapsed, tempSum, tempDecimal, layerScale, _
+    pExtAggValue, pExtPrimValue, pExtExcessValue, layerPercent, companyRate, ageDebit, _
+    ageDebitOld, hailDebit, hailDebitOld, sprinklerCredit, sprinklerCreditOld, _
+    cleanCredit, cleanCreditOld, extinguisherCredit, extinguisherCreditOld, _
+    crimeCredit, crimeCreditOld, rllCredit, rllCreditOld, siteManagerCredit, siteManagerCreditOld, _
+    floodLimitDebit, floodLimitDebitOld, sumTX, latitude, longitude, geoLocation(), redDudMultiple As Double
+Dim waterDamDedCredit, waterDamDedCreditOld As Double
+Dim waterDamLimitCredit, waterDamLimitCreditOld As Double
+Dim whDedCredit, whDedCreditOld As Double
+Dim floodDedCredit, floodDedCreditOld As Double
+Dim quakeDedCredit, quakeDedCreditOld As Double
+Dim exDate, effDate, windStart, windEnd, bordereauEffective As Date
+Dim dateEffStart, dateEffEnd, dateExStart, dateExEnd As Date
+Dim exDateMonth, effDateMonth, inLayer, p, daysFromStart, daysFromEnd, _
+    groupFlag, groupStartRow, groupEndRow, oldAge, newAge As Integer
+Dim days, daysNext, headerRow, i, j, rateOffset, accountRateOffset, accountPremiumOffset, _
+    locationScaleOffset, occupancyOffset, constructionOffset, scaleOffset, premiumOffset, _
+    priceActionOffset, newTIVOffset, oldTIVOffset, effectiveOffset, _
+    expirationOffset, proRataOffset, windProrataOffset, windProRataOffsetQuery, _
+    occupancy, construction, catScenarioOffset, catScenario, catFlag, _
+    catLoadOffset, totalRow, bdxEffectiveOffset, addressOffset, cityOffset, stateOffset, _
+    lastRow, zipOffset, trueScaleOffset, weightedScaleOffset, _
+    countyOffset, locNumOffset, _
+    isBdx, incDed, dedicatedLimitFactor, floodOffset, windTierOffset, hailScenarioOffset, squareOffset, _
+    buildingValueOffset, squareFootageOffset, locationLayer, companyLayer, cellsHaveErrors, _
+    yearBuiltOffset, yearRoofUpdateOffset, answerHowScale, targetRateOffset, sprinklerOffset, latOffset, longOffset, _
+    siteManagementOffset, crimeScoreOffset, fireExtinguisherOffset, rllMandatoryOffset, falOffset, count As Integer
+Dim priceAction, calcTIV, dedicatedString, scalePrimaryOnlyString, kindOfTransaction, _
+    firstCompany, lastCompany, _
+    firstClearCompany, lastClearCompany, windDbbCompany, floodDbbCompany
+Dim currentCompanyName As String
+Dim catNote As String
+Dim catPlusMinus As String
+Dim orig_formula As String
+Dim windProRataAddress, proRataAddress As String
+Dim rateSheet, exceptionSheet, breakoutSheet As Worksheet
+Dim oRange, nRange As Range
+Dim market As String
+Dim deleteFAL As Integer
+Dim premium, totalCatAAL As Double
+Dim locationNumber, currentRow As Integer
+
+Dim cnn As New ADODB.Connection
+Dim rst As New ADODB.Recordset
+Dim StrQuery, ConnectionString As String
+startTime = Timer
+deleteFAL = 0
+Range("membershipFee") = 0 'we no longer charge the membership fee in the rater
+Set a = Range("checkHomeState")
+Set rateRange = Worksheets("RateData").Range("rateData")
+Set companyRange = Worksheets("CompanyData").Range("layerData")
+
+With Range(Range("includeTRIACheck").Offset(0, -3).address(0, 0, , 1) & ":" & Range("includeTRIACheck").Offset(3, -3).address(0, 0, , 1)).Interior
+    .Pattern = xlNone
+    .TintAndShade = 0
+    .PatternTintAndShade = 0
+End With
+Call up_MortageOrLeaseCond
+If a.Value = "" Then
+    MsgBox ("Add home state before running the rater...")
+    GoTo finish
+ElseIf (a.Value = "IL" Or a.Value = "FL" Or _
+    a.Value = "AR" Or a.Value = "AK" Or _
+    a.Value = "GA" Or a.Value = "ID" Or _
+    a.Value = "MD" Or a.Value = "MN" Or _
+    a.Value = "OK" Or _
+    a.Value = "MS" Or a.Value = "CT" Or _
+    a.Value = "DE" Or a.Value = "TN") Then
+    If Range("includeTRIACheck").Value = True Then
+        With Range("includeTRIACheck").Offset(0, -3).Interior
+            .Pattern = xlSolid
+            .PatternColorIndex = xlAutomatic
+            .ThemeColor = xlThemeColorAccent2
+            .TintAndShade = 0.399975585192419
+            .PatternTintAndShade = 0
+        End With
+    End If
+    If Range("includeNCFlood").Value = True Then
+        With Range("includeNCFlood").Offset(0, -3).Interior
+            .Pattern = xlSolid
+            .PatternColorIndex = xlAutomatic
+            .ThemeColor = xlThemeColorAccent2
+            .TintAndShade = 0.399975585192419
+            .PatternTintAndShade = 0
+        End With
+    End If
+    If Range("includeCritFlood").Value = True Then
+        With Range("includeCritFlood").Offset(0, -3).Interior
+            .Pattern = xlSolid
+            .PatternColorIndex = xlAutomatic
+            .ThemeColor = xlThemeColorAccent2
+            .TintAndShade = 0.399975585192419
+            .PatternTintAndShade = 0
+        End With
+    End If
+    If Range("includeQuake").Value = True Then
+        With Range("includeQuake").Offset(0, -3).Interior
+            .Pattern = xlSolid
+            .PatternColorIndex = xlAutomatic
+            .ThemeColor = xlThemeColorAccent2
+            .TintAndShade = 0.399975585192419
+            .PatternTintAndShade = 0
+        End With
+    End If
+End If
+If Range("premiumOverMatrixAllocation").Value <> 0 And Range("premiumOverMatrixAllocation").Value <> 1 Then
+    MsgBox ("The Premium Over Matrix Allocation is Incorrect, Please Fix Before Proceeding...")
+    cwb.Activate
+    Range("premiumOverMatrixAllocation").Select
+    GoTo finish
+End If
+
+groupFlag = 0
+Set oValues = Range(Range("Group").Offset(1, 0).address(0, 0) & ":" & Range("Group").Offset(65000, 0).End(xlUp).address)
+groupEndRow = Range("Group").Offset(65000, 0).End(xlUp).Row
+groupStartRow = Range("Group").Offset(1, 0).Row
+firstCompany = Range("firstCompany").Value2
+lastCompany = Range("lastCompany").Value2
+firstClearCompany = Range("firstClearCompany").Value2
+lastClearCompany = Range("lastClearCompany").Value2
+ageDebit = 1
+hailDebit = 1
+sprinklerCredit = 1
+floodLimitDebit = 1
+ageDebitOld = 1
+hailDebitOld = 1
+sprinklerCreditOld = 1
+floodLimitDebitOld = 1
+cleanCredit = 1
+cleanCreditOld = 1
+extinguisherCredit = 1
+extinguisherCreditOld = 1
+crimeCredit = 1
+crimeCreditOld = 1
+rllCredit = 1
+rllCreditOld = 1
+siteManagerCredit = 1
+siteManagerCreditOld = 1
+oldAge = 1980
+newAge = 1990
+'set occupancyOffset to measure the difference between this and the TIV
+locNumOffset = Range("locNum").Column - Range("Group").Column
+catLoadOffset = Range("EQAAL").Column - Range("Group").Column
+occupancyOffset = Range("occupancyClass").Column - Range("Group").Column
+constructionOffset = Range("ISO").Column - Range("Group").Column
+catScenarioOffset = Range("catScenario").Column - Range("Group").Column
+countyOffset = Range("county").Column - Range("Group").Column
+zipOffset = Range("zip").Column - Range("Group").Column
+newTIVOffset = Range("newTIV").Column - Range("Group").Column
+oldTIVOffset = Range("oldTIV").Column - Range("Group").Column
+effectiveOffset = Range("EffectiveDate").Column - Range("Group").Column
+expirationOffset = Range("ExpirationDate").Column - Range("Group").Column
+proRataOffset = Range("proRata").Column - Range("Group").Column
+windProrataOffset = Range("WindProRataValue").Column - Range("Group").Column
+'windProRataOffsetQuery = Range("ProRateWind").Column - Range("Group").Column
+priceActionOffset = Range("PriceAction").Column - Range("Group").Column
+premiumOffset = Range("Premium").Column - Range("Group").Column
+scaleOffset = Range("Scale").Column - Range("Group").Column
+accountPremiumOffset = Range("accountPremium").Column - Range("Group").Column
+accountRateOffset = Range("accountRate").Column - Range("Group").Column
+rateOffset = Range("Rate").Column - Range("Group").Column
+floodOffset = Range("floodZone").Column - Range("Group").Column
+windTierOffset = Range("windTier").Column - Range("Group").Column
+hailScenarioOffset = Range("hailScenario").Column - Range("Group").Column
+squareOffset = Range("costPerSquare").Column - Range("Group").Column
+addressOffset = Range("address").Column - Range("Group").Column
+stateOffset = Range("state").Column - Range("Group").Column
+cityOffset = Range("city").Column - Range("Group").Column
+squareFootageOffset = Range("squareFootage").Column - Range("Group").Column
+buildingValueOffset = Range("buildingValue").Column - Range("Group").Column
+bdxEffectiveOffset = Range("bordereauEffective").Column - Range("Group").Column
+locationScaleOffset = Range("locationScale").Column - Range("Group").Column
+trueScaleOffset = Range("trueScale17").Column - Range("Group").Column
+weightedScaleOffset = Range("weightedScale").Column - Range("Group").Column
+yearBuiltOffset = Range("yearBuilt").Column - Range("Group").Column
+yearRoofUpdateOffset = Range("roofUpdateYear").Column - Range("Group").Column
+targetRateOffset = Range("targetRate").Column - Range("Group").Column
+sprinklerOffset = Range("sprinklered").Column - Range("Group").Column
+latOffset = Range("latitude").Column - Range("Group").Column
+longOffset = Range("longitude").Column - Range("Group").Column
+siteManagementOffset = Range("siteManagement").Column - Range("Group").Column
+crimeScoreOffset = Range("crimeScore").Column - Range("Group").Column
+fireExtinguisherOffset = Range("fireExtinguishers").Column - Range("Group").Column
+rllMandatoryOffset = Range("rllMandatory").Column - Range("Group").Column
+falOffset = Range("London_Agg_Layer").Column - Range("Group").Column
+
+'Dim aggregateCompanies As Variant
+'aggregateCompanies = Range("aggregateCompanies")
+
+'*** Load Cat Company Array; discontiguous, so need this new scheme
+Dim aggregateCompanies As Variant
+aggregateCompanies = Range("aggregateCompanies")
+Set catRange = Range("aggregateCompanies")
+n = catRange.Cells.count
+ReDim aggregateCompanies(1 To n)
+n = 1
+For Each oCell In catRange.Cells
+    aggregateCompanies(n) = oCell.Value2
+    n = n + 1
+Next oCell
+'*** End Load Cat Array
+
+Dim noDebitCredit As Variant
+noDebitCredit = Range("noDebitCredit")
+
+Dim primaryCompanies As Variant
+primaryCompanies = Range("primaryCompanies")
+
+Dim noScaleCompanies As Variant
+noScaleCompanies = Range("noScaleCompanies")
+
+Dim dedicatedCompanies As Variant
+dedicatedCompanies = Range("dedicatedCompanies")
+
+Dim terrorismCompanies As Variant
+terrorismCompanies = Range("terrorismCompanies")
+
+Dim boilerCompanies As Variant
+boilerCompanies = Range("boilerCompanies")
+
+'*** Load Cat Company Array; discontiguous, so need this new scheme
+Dim catLoadCompanies As Variant
+Set catRange = Range("catLoadCompanies")
+n = catRange.Cells.count
+ReDim catLoadCompanies(1 To n)
+n = 1
+For Each oCell In catRange.Cells
+    catLoadCompanies(n) = oCell.Value2
+    n = n + 1
+Next oCell
+'*** End Load Cat Array
+
+Debug.Print "variables assigned" & " " & Round(Timer - startTime, 0) & " Seconds"
+'GoTo vlookupSkip
+
+ConnectionString = "Provider=SQLOLEDB;Data Source=dc01db02;Trusted_connection=yes;"
+For Each groupCell In oValues
+    '*** Add Counties and cat using vlookup from zip
+        cnn.Open ConnectionString
+        cnn.CommandTimeout = 60
+        StrQuery = "SELECT county, state, catscenario, tier1or2, hailscenario from [RiskBound_Reporting].[dbo].[Counties] where zip = " & 1 * Left(groupCell.Offset(0, zipOffset).Value, 5)
+        rst.Open StrQuery, cnn
+        If rst.EOF = True Then
+            MsgBox ("Zip Code " & 1 * Left(groupCell.Offset(0, zipOffset).Value, 5) & " is not in the database; can you check it?")
+            GoTo finish
+        End If
+        groupCell.Offset(0, countyOffset).Value = rst(0)
+        groupCell.Offset(0, stateOffset).Value = rst(1)
+        groupCell.Offset(0, catScenarioOffset).Value = rst(2)
+        groupCell.Offset(0, windTierOffset).Value = rst(3)
+        groupCell.Offset(0, hailScenarioOffset).Value = rst(4)
+        
+        cnn.Close
+'    groupCell.Offset(0, countyOffset).Value = "=vlookup(" & groupCell.Offset(0, zipOffset).Address(0, 0) & ", Counties!A:C,3,0)"
+'    groupCell.Offset(0, countyOffset).Value = groupCell.Offset(0, countyOffset).Value
+'    groupCell.Offset(0, stateOffset).Value = "=vlookup(" & groupCell.Offset(0, zipOffset).Address(0, 0) & ", Counties!A:B,2,0)"
+'    groupCell.Offset(0, stateOffset).Value = groupCell.Offset(0, stateOffset).Value
+'    groupCell.Offset(0, catScenarioOffset).Value = "=vlookup(" & groupCell.Offset(0, zipOffset).Address(0, 0) & ", Counties!A:D,4,0)"
+'    groupCell.Offset(0, catScenarioOffset).Value = groupCell.Offset(0, catScenarioOffset).Value
+'    groupCell.Offset(0, windTierOffset).Value = "=vlookup(" & groupCell.Offset(0, zipOffset).Address(0, 0) & ", Counties!A:E,5,0)"
+'    groupCell.Offset(0, windTierOffset).Value = groupCell.Offset(0, windTierOffset).Value
+'    groupCell.Offset(0, hailScenarioOffset).Value = "=vlookup(" & groupCell.Offset(0, zipOffset).Address(0, 0) & ", Counties!A:F,6,0)"
+'    groupCell.Offset(0, hailScenarioOffset).Value = groupCell.Offset(0, hailScenarioOffset).Value
+    '*** End add counties
+Next groupCell
+
+vlookupSkip:
+
+Debug.Print "vlookups done" & " " & Round(Timer - startTime, 0) & " Seconds"
+
+Range("tiv").Value = "=max(sum(" & Range("newTIV").Offset(1, 0).address(0, 0, , 1) & ":" & Range("newTIV").Offset(60000, 0).End(xlUp).address(0, 0, , 1) & "),sum(" _
+    & Range("oldTIV").Offset(1, 0).address(0, 0, , 1) & ":" & Range("oldTIV").Offset(60000, 0).End(xlUp).address(0, 0, , 1) & "))"
+
+'******** Remove Alt Enter *********
+Cells.Select
+Cells.Replace What:=Chr(10), Replacement:=" ", LookAt:=xlPart, SearchOrder:=xlByRows, MatchCase:=False
+Range("A9").Select
+'***********************************
+
+scaleValue = Range("topScale").Value
+If scaleValue < 1 Then
+    Range("pExtAgg").Value = 0
+    Range("pExtPrim").Value = 0
+    Range("PExtExcess").Value = 0
+End If
+
+cellsHaveErrors = 0
+'Trim Cells
+'GoTo skipTrim
+
+'New trim method
+Set oCell = Range(Range("LocNum").Offset(1, 0).address(0, 0) & ":" & Range("priceAction").Offset(Range("Group").End(xlDown).Row, 0).address(0, 0))
+Set Rng = oCell.SpecialCells(xlCellTypeConstants)
+For Each area In Rng.Areas
+    area.Value = Evaluate("IF(ROW(" & area.address & "),CLEAN(TRIM(" & area.address & ")))")
+Next area
+
+skipTrim:
+Debug.Print "cells trimmed" & " " & Round(Timer - startTime, 0) & " Seconds"
+Set rateSheet = Worksheets("Pricing Tool")
+isBdx = 0
+If Range("LocNum").Row = 1 Then isBdx = 1
+Range("Scale").Offset(1, 0).NumberFormat = "General"
+Range("Scale").Offset(1, 0).Value = Range("Scale").Offset(1, 0).Value
+
+'check to see if the cells are named
+For Each nm In ActiveWorkbook.Names
+    If InStr(nm.Name, "LocNum") > 0 Then
+        headerRow = Range("LocNum").Row
+        GoTo keepgoing
+    End If
+Next nm
+
+'if the name was not found, then send it to the end
+MsgBox ("Problem with the worksheet; the headers don't have names!")
+GoTo finish
+
+'if the name was found, then land here to keep going
+keepgoing:
+Dim rRangeCheck As Range
+On Error Resume Next
+Set rRangeCheck = Nothing
+Set rRangeCheck = Range("EffectiveDate")
+On Error GoTo 0
+If rRangeCheck Is Nothing Then
+     MsgBox ("Something is wrong with the spreadsheet.  Missing effective date name.")
+     GoTo finish
+End If
+
+If rRangeCheck.Offset(1, 0).Value >= DateValue("5/1/2024") Then
+    MsgBox ("The effective date is after 5/1/2024, so you cannot quote this account. You can continue for rating purposes, though")
+End If
+
+'clear out any other year numbers
+lastRow = Range("Group").Offset(65000, 0).End(xlUp).Row
+If lastRow <= Range("Group").Row Then
+    lastRow = Range("Group").Row + 1
+End If
+
+Range(Range(firstClearCompany).Offset(1, 0).address(0, 0) & ":" & Range(lastClearCompany).Offset(lastRow - headerRow, 0).address(0, 0)).ClearContents
+Range(Range("proRata").Offset(1, 0).address(0, 0) & ":" & Range("Premium").Offset(lastRow - headerRow, 0).address(0, 0)).ClearContents
+Range(Range("accountPremium").Offset(1, 0).address(0, 0) & ":" & Range("Scale").Offset(lastRow - headerRow, 0).address(0, 0)).ClearContents
+'delete companies if they are already there
+
+Debug.Print "old values cleaned" & " " & Round(Timer - startTime, 0) & " Seconds"
+Dim rCellCheck As Range
+Set oCell = Range(firstCompany)
+
+GoTo skipHeaders
+'put in the company headers
+For i = 1 To companyRange.Rows.count
+    oCell.Offset(0, i - 1).Value = companyRange.Cells(i, 1)                                       'put in the company header
+    oCell.Offset(0, i - 1).Name = companyRange.Cells(i, 2)                                        'put in the name of the company
+    oCell.Offset(0, i - 1).EntireColumn.NumberFormat = _
+        "_($* #,##0_);_($* (#,##0);_($* ""-""??_);_(@_)"                                    'convert to currency with no decimals
+Next i
+skipHeaders:
+
+'run through all of the values for each location
+'set oValues equal to a range of all the TIVs that we have to review and rate
+'look for the first group and only select those in the group to price
+'if group is blank or zero, it is ignored
+'the group number is meaningless other than it has to be unique on the spreadsheet
+'Start the Loop
+
+Debug.Print "start loop" & " " & Round(Timer - startTime, 0) & " Seconds"
+
+    Set topLeft = oValues.Cells(1)
+    exDate = DateValue(topLeft.Offset(0, expirationOffset).Value)                                                       'calculate pro rata
+    effDate = DateValue(topLeft.Offset(0, effectiveOffset).Value)
+    days = DateDiff("d", bordereauEffective, exDate)
+    bordereauEffective = DateValue(topLeft.Offset(0, bdxEffectiveOffset).Value)
+    proRata = Round(DateDiff("d", bordereauEffective, exDate) / DateDiff("d", effDate, DateAdd("yyyy", 1, effDate)), 3)
+    'fix all of the prorata and date values
+    For Each tCell In oValues
+        tCell.Offset(0, proRataOffset).Value2 = proRata
+        tCell.Offset(0, expirationOffset).Value2 = exDate
+        tCell.Offset(0, effectiveOffset).Value2 = effDate
+        tCell.Offset(0, bdxEffectiveOffset).Value2 = bordereauEffective
+        tCell.Offset(0, trueScaleOffset).Value2 = 1
+        tCell.Offset(0, locationScaleOffset).Value2 = 1
+    Next tCell
+    For Each tCell In oValues
+        If Not IsError(tCell.Offset(0, addressOffset)) And _
+            Not IsError(tCell.Offset(0, cityOffset)) And _
+            Not IsError(tCell.Offset(0, stateOffset)) And _
+            Not IsError(tCell.Offset(0, zipOffset)) Then
+                tCell.Offset(0, zipOffset).Formula = "=hyperlink(" & Chr(34) & "https://www.google.com/maps/place/" & _
+                tCell.Offset(0, addressOffset).Value & " " & _
+                tCell.Offset(0, cityOffset).Value & " " & _
+                tCell.Offset(0, stateOffset).Value & " " & _
+                tCell.Offset(0, zipOffset).Value & Chr(34) & "," & _
+                tCell.Offset(0, zipOffset) & ")"
+        Else
+            MsgBox ("There is an error in the address on line " & tCell.Row)
+            tCell.Offset(0, addressOffset).Select
+            GoTo finish
+        End If
+    Next tCell
+    exDateMonth = Month(exDate)
+    effDateMonth = Month(bordereauEffective)
+    If Range("proRateWind") = False Then
+        windProRata = 1
+        GoTo skipWind
+    End If
+    'what is the wind season in the effective year?
+    dateEffStart = DateValue("6/1/" & Year(bordereauEffective))
+    dateEffEnd = DateValue("11/30/" & Year(bordereauEffective))
+    'what is the wind season in the expiration year?
+    dateExStart = DateValue("6/1/" & Year(exDate))
+    dateExEnd = DateValue("11/30/" & Year(exDate))
+    'figure out the wind prorata (could still use some testing)
+    If bordereauEffective <= dateEffStart And exDate >= dateEffEnd Then 'effective is before wind season and expriation is after, so one full season
+        windProRata = 1
+    ElseIf bordereauEffective <= dateEffStart And exDate <= dateEffStart Then 'effective is before wind season and expriation is before too, so no exposure
+        windProRata = 0
+    ElseIf bordereauEffective <= dateEffStart And exDate <= dateEffEnd Then 'effective is before wind season and expriation is during, calculate days
+        exposedDays = DateDiff("d", dateEffStart, exDate)
+        windProRata = Round(exposedDays / 182, 4)
+    ElseIf bordereauEffective >= dateEffStart And exDate <= dateEffEnd Then 'effective is after wind season and expiration is also before the end of wind season, so calculate partial wind season
+        exposedDays = DateDiff("d", bordereauEffective, exDate)
+        windProRata = Round(exposedDays / 182, 4)
+    ElseIf bordereauEffective >= dateEffStart And exDate <= dateExStart Then 'effective is after wind season and expiration is also before the start of next wind season
+        exposedDays = Application.Max(DateDiff("d", bordereauEffective, dateEffEnd), 0)
+        windProRata = Round(exposedDays / 182, 4)
+    ElseIf bordereauEffective >= dateEffStart And exDate >= dateExStart Then 'effective is after wind season start and expiration is after the start of next season
+        If dateEffStart = dateExStart Then 'start and end in the same wind season
+            exposedDays = Application.Max(DateDiff("d", bordereauEffective, dateEffEnd), 0)
+        Else
+            exposedDays = Application.Max(DateDiff("d", bordereauEffective, dateEffEnd), 0) + Application.Min(DateDiff("d", dateExStart, exDate), 182)
+        End If
+        windProRata = Round(exposedDays / 182, 4)
+    Else
+        windProRata = "Error"
+    End If
+skipWind:
+i = 0
+kindOfTransaction = ""
+    For Each tCell In oValues
+        Set b = tCell.Offset(0, priceActionOffset)
+        If i = 0 Then
+            kindOfTransaction = Trim(LCase(b.Value))
+            i = 1
+        Else
+            If Trim(LCase(b.Value)) <> kindOfTransaction Then
+                MsgBox ("There are multiple types of transactions here, please use only Add, Change, or Delete")
+                GoTo finish
+            End If
+        End If
+    Next tCell
+
+    'remove inspections and membership fee if it's not an add
+    If kindOfTransaction <> "add" Then
+        Range("inspectionLocations") = 0
+        Range("membershipFee") = 0
+    End If
+    
+    For Each tCell In oValues
+        tCell.Offset(0, windProrataOffset).Value = proRata
+    Next tCell
+    
+    'run through each company
+    
+Debug.Print "start company runthrough" & " " & Round(Timer - startTime, 0) & " Seconds"
+    For Each tCell In oValues
+        priceAction = tCell.Offset(0, priceActionOffset).Value
+        newLocationTIV = tCell.Offset(0, newTIVOffset).Value
+        oldLocationTIV = tCell.Offset(0, oldTIVOffset).Value
+        '******* CREDITS AND DEBITS BEING APPLIED HERE **************
+        ageDebit = 1
+        ageDebitOld = 1
+        cleanCredit = 1
+        cleanCreditOld = 1
+        crimeCredit = 1
+        crimeCreditOld = 1
+        extinguisherCredit = 1
+        extinguisherCreditOld = 1
+        floodLimitDebit = 1
+        floodLimitDebitOld = 1
+        hailDebit = 1
+        hailDebitOld = 1
+        rllCredit = 1
+        rllCreditOld = 1
+        siteManagerCredit = 1
+        siteManagerCreditOld = 1
+        sprinklerCredit = 1
+        sprinklerCreditOld = 1
+        If Range("multiplyYear").Value = True And tCell.Offset(0, yearBuiltOffset).Value <= oldAge Then 'oldAge is the cutoff for being 'old'. this is set in the variables up top
+            ageDebit = 1 + Range("oldAgeDebitPct").Value2
+        ElseIf Range("ageCreditCheck").Value = True And tCell.Offset(0, yearBuiltOffset).Value >= newAge Then
+            ageDebit = 1 + Range("ageCreditPct").Value2
+        End If
+        If Range("hailDebitCheck").Value = True And tCell.Offset(0, hailScenarioOffset).Value >= 100 Then
+            If Range("windHailDeductible").Value >= 5 Then
+                hailDebit = 1 + Range("hailDebitPct").Value2
+            ElseIf Range("windHailDeductible").Value > 2 Then
+                hailDebit = 1 + Range("hailDebitPct").Value2
+            ElseIf Range("windHailDeductible").Value = 2 Then
+                hailDebit = 1 + Range("hailDebitPct").Value2
+            ElseIf Range("windHailDeductible").Value < 2 And Range("windHailDeductible").Value >= 1 Then
+                hailDebit = 1 + Range("hailDebitPct").Value2
+            Else
+                MsgBox ("Error: Wind and hail deductible can't be less than 1%")
+            End If
+        End If
+        If Range("sprinklerCreditCheck").Value = True And LCase(tCell.Offset(0, sprinklerOffset).Value) = "y" Then
+            sprinklerCredit = 1 + Range("sprinklerCreditPct").Value
+        End If
+        If ((Range("includeCritFlood").Value = True And Range("floodLimit").Value > 2500000 And Range("floodLimit").Value <= 5000000) Or _
+            (Range("includeNCFlood").Value = True And Range("ncFloodLimit").Value > 2500000 And Range("ncFloodLimit").Value <= 5000000)) And _
+            (Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "v" Or _
+            Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "a" Or _
+            Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "d") Then
+            floodLimitDebit = 1.1
+        ElseIf ((Range("includeCritFlood").Value = True And Range("floodLimit").Value > 5000000 And Range("floodLimit").Value <= 10000000) Or _
+            (Range("includeNCFlood").Value = True And Range("ncFloodLimit").Value > 5000000 And Range("ncFloodLimit").Value <= 10000000)) And _
+            (Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "v" Or _
+            Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "a" Or _
+            Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "d") Then
+            floodLimitDebit = 1.125
+        ElseIf ((Range("includeCritFlood").Value = True Or Range("includeNCFlood").Value = True) And Range("floodLimit").Value > 10000000 Or Range("ncFloodLimit").Value > 10000000) And _
+            (Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "v" Or _
+            Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "a" Or _
+            Left(LCase(tCell.Offset(0, floodOffset).Value), 1) = "d") Then
+            floodLimitDebit = 1.15
+        End If
+        'Clean Credit Calculation
+        If Range("aal").Value2 = 0 And Range("cleanCreditCheck").Value = True Then
+            cleanCredit = 1 + Range("cleanCreditPct").Value2
+        End If
+        'Crime Score Calculation
+        If Range("crimeCreditCheck").Value = True And tCell.Offset(0, crimeScoreOffset).Value2 <= 15 Then 'The average RiskMeter crime score is 20, half is 10, etc.
+            crimeCredit = 1 + Range("crimeCreditPct").Value2
+        End If
+        'Extinguisher Credit
+        If Range("extinguisherCreditCheck").Value = True And LCase(tCell.Offset(0, fireExtinguisherOffset).Value2) = "y" Then
+            extinguisherCredit = 1 + Range("extinguisherCreditPct").Value2
+        End If
+        'RLL Credit
+        If Range("rllCreditCheck").Value = True And LCase(tCell.Offset(0, rllMandatoryOffset).Value2) = "y" Then
+            rllCredit = 1 + Range("rllCreditPct").Value2
+        End If
+        'Site Manager Credit
+        If Range("siteManagerCreditCheck").Value = True And LCase(tCell.Offset(0, siteManagementOffset).Value2) = "y" Then
+            siteManagerCredit = 1 + Range("siteManagerCreditPct").Value2
+        End If
+        'figure out what TIV to use if it's an add, change, or delete
+        If LCase(Trim(priceAction)) = "add" Then 'see if the TIV is less than the attachment point plus the capacity in layer
+            calcTIV = tCell.Offset(0, newTIVOffset).address
+        ElseIf LCase(Trim(priceAction)) = "change" Then
+            calcTIV = "(" & tCell.Offset(0, newTIVOffset).address(0, 0) & " - " & _
+            tCell.Offset(0, oldTIVOffset).address(0, 0) & ")"
+        ElseIf LCase(Trim(priceAction)) = "delete" Then
+            calcTIV = "(0 - " & tCell.Offset(0, oldTIVOffset).address(0, 0) & ")"
+            If tCell.Offset(0, locNumOffset).Value = "" Then
+                MsgBox ("There is a delete on line " & tCell.Row & " with no corresponding location number.  There needs to be a location number to delete.  Please look up the number in a previous rater and add it in.")
+                GoTo finish
+            End If
+        Else
+            calcTIV = 0
+            GoTo noChange
+        End If
+        catScenario = tCell.Offset(0, catScenarioOffset).Value                              'find the cat scenario
+        construction = tCell.Offset(0, constructionOffset).Value                            'find the construction
+        If Not construction > 0 Then
+            MsgBox ("Missing construction on line " & tCell.Row)
+            GoTo finish
+        End If
+        occupancy = tCell.Offset(0, occupancyOffset).Value                                  'find the occupancy
+        If Not occupancy > 0 Then
+            MsgBox ("Missing occupancy on line " & tCell.Row)
+            GoTo finish
+        End If
+        '*************** fix the deductible for 2% in cat 1 or 3
+        redDudMultiple = 1
+        If Range("tierOneDeductible").Value < 3 And tCell.Offset(0, catScenarioOffset).Value = 1 Then 'tier 1 tx to va
+            redDudMultiple = 17.5 / 15 'increase load to 17.5%
+        ElseIf Range("tierOneDeductible").Value < 3 And tCell.Offset(0, catScenarioOffset).Value = 3 Then 'tier 1 va north
+            redDudMultiple = 1.25 'increase load to 17.5%
+        End If
+        If Range("floridaAllOtherDeductible").Value < 5 And tCell.Offset(0, catScenarioOffset).Value = 2 Then
+            redDudMultiple = 1.25
+        End If
+        If Range("waterDed").Value >= 100000 Then
+            waterDamDedCredit = 0.9
+        ElseIf Range("waterDed").Value >= 50000 Then
+            waterDamDedCredit = 0.95
+        Else
+            waterDamDedCredit = 1
+        End If
+        If Range("waterDamSublimit").Value <= 500000 Then
+            waterDamLimitCredit = 0.9
+        ElseIf Range("waterDamSublimit").Value <= 1000000 Then
+            waterDamLimitCredit = 0.95
+        Else
+            waterDamLimitCredit = 1
+        End If
+        If Range("waterDamSublimit").Value <= 500000 Then
+            waterDamLimitCredit = 0.9
+        ElseIf Range("waterDamSublimit").Value <= 1000000 Then
+            waterDamLimitCredit = 0.95
+        Else
+            waterDamLimitCredit = 1
+        End If
+        
+        proRataAddress = tCell.Offset(0, proRataOffset).address
+        windProRataAddress = tCell.Offset(0, windProrataOffset).address
+        
+Debug.Print "row = " & tCell.Row
+        For i = 1 To companyRange.Rows.count
+            currentCompanyName = companyRange.Cells(i, 2)
+            If IsInArray(currentCompanyName, dedicatedCompanies) Or _
+                IsInArray(currentCompanyName, terrorismCompanies) Or _
+                IsInArray(currentCompanyName, noScaleCompanies) Or _
+                IsInArray(currentCompanyName, aggregateCompanies) Or _
+                IsInArray(currentCompanyName, boilerCompanies) Then
+                    ageDebitOld = ageDebit
+                    hailDebitOld = hailDebit
+                    sprinklerCreditOld = sprinklerCredit
+                    floodLimitDebitOld = floodLimitDebit
+                    cleanCreditOld = cleanCredit
+                    crimeCreditOld = crimeCredit
+                    extinguisherCreditOld = extinguisherCredit
+                    rllCreditOld = rllCredit
+                    siteManagerCreditOld = siteManagerCredit
+                    waterDamDedCreditOld = waterDamDedCredit
+                    waterDamLimitCreditOld = waterDamLimitCredit
+                    ageDebit = 1
+                    hailDebit = 1
+                    sprinklerCredit = 1
+                    floodLimitDebit = 1
+                    cleanCredit = 1
+                    crimeCredit = 1
+                    extinguisherCredit = 1
+                    rllCredit = 1
+                    siteManagerCredit = 1
+                    waterDamDedCredit = 1
+                    waterDamLimitCredit = 1
+            'Zurich Exception; Max 20% Credit
+            ElseIf currentCompanyName = "Scottsdale_Primary" Then 'Zurich
+                    ageDebitOld = ageDebit
+                    hailDebitOld = hailDebit
+                    sprinklerCreditOld = sprinklerCredit
+                    floodLimitDebitOld = floodLimitDebit
+                    cleanCreditOld = cleanCredit
+                    crimeCreditOld = crimeCredit
+                    extinguisherCreditOld = extinguisherCredit
+                    rllCreditOld = rllCredit
+                    siteManagerCreditOld = siteManagerCredit
+                    If sprinklerCredit * cleanCredit * crimeCredit * extinguisherCredit * _
+                        rllCredit * siteManagerCredit * waterDamDedCredit * waterDamLimitCredit < 0.8 Then
+                       sprinklerCredit = 0.8
+                        ageDebit = 1
+                        hailDebit = 1
+                        floodLimitDebit = 1
+                        cleanCredit = 1
+                        crimeCredit = 1
+                        extinguisherCredit = 1
+                        rllCredit = 1
+                        siteManagerCredit = 1
+                        waterDamDedCredit = 1
+                        waterDamLimitCredit = 1
+                    End If
+            ElseIf currentCompanyName = "London_Primary" Or currentCompanyName = "London_Dedicated" Then 'Inigo
+                    ageDebitOld = ageDebit
+                    hailDebitOld = hailDebit
+                    sprinklerCreditOld = sprinklerCredit
+                    floodLimitDebitOld = floodLimitDebit
+                    cleanCreditOld = cleanCredit
+                    crimeCreditOld = crimeCredit
+                    extinguisherCreditOld = extinguisherCredit
+                    rllCreditOld = rllCredit
+                    siteManagerCreditOld = siteManagerCredit
+                    If sprinklerCredit * cleanCredit * crimeCredit * extinguisherCredit * _
+                        rllCredit * siteManagerCredit * waterDamDedCredit * waterDamLimitCredit < 0.75 Then
+                       sprinklerCredit = 0.75
+                        ageDebit = 1
+                        hailDebit = 1
+                        floodLimitDebit = 1
+                        cleanCredit = 1
+                        crimeCredit = 1
+                        extinguisherCredit = 1
+                        rllCredit = 1
+                        siteManagerCredit = 1
+                        waterDamDedCredit = 1
+                        waterDamLimitCredit = 1
+                    End If
+            End If
+           
+            '******** END CREDITS AND DEBITS *************
+            'NEED TO TAILOR FOR PROGRAM
+            Select Case newLocationTIV / 1000000
+                Case Is >= 475
+                    locationLayer = 1
+                Case Is >= 250
+                    locationLayer = 6
+                Case Is >= 200
+                    locationLayer = 5
+                Case Is >= 100
+                    locationLayer = 4
+                Case Is >= 50
+                    locationLayer = 3
+                Case Is >= 25
+                    locationLayer = 2
+                Case Else
+                    locationLayer = 1
+            End Select
+            If oldLocationTIV > newLocationTIV Then
+                Select Case oldLocationTIV / 1000000
+                    Case Is >= 475
+                        locationLayer = 1
+                    Case Is >= 250
+                        locationLayer = 6
+                    Case Is >= 200
+                        locationLayer = 5
+                    Case Is >= 100
+                        locationLayer = 4
+                    Case Is >= 50
+                        locationLayer = 3
+                    Case Is >= 25
+                        locationLayer = 2
+                    Case Else
+                        locationLayer = 1
+                End Select
+            End If
+            Select Case companyRange.Cells(i, 4)
+                Case Is > 450
+                    companyLayer = 1
+                Case Is > 250
+                    companyLayer = 6
+                Case Is > 200
+                    companyLayer = 5
+                Case Is > 100
+                    companyLayer = 4
+                Case Is > 50
+                    companyLayer = 3
+                Case Is > 25
+                    companyLayer = 2
+                Case Else
+                    companyLayer = 1
+            End Select
+            If companyLayer = 1 Then 'primary or agg
+                layerScale = 1
+                inLayer = 1
+            ElseIf companyLayer > locationLayer Then 'location is not excess of the layer
+                layerScale = 0.5
+                inLayer = 1
+            Else
+                layerScale = 1
+                inLayer = 1
+            End If
+            If Range("fullExcess") = False Then
+                layerScale = 1
+                inLayer = 1
+            End If
+ 
+            For j = 1 To rateRange.Rows.count
+                If rateRange.Cells(j, 3) = occupancy _
+                    And companyRange.Cells(i, 5) = rateRange.Cells(j, 2) Then            'find the rate with the correct occupancy
+                    p = ratePosition(construction)
+                    '*** Use this to add dedicated and tria amount
+                    dedicatedString = ""
+                    If IsInArray(currentCompanyName, dedicatedCompanies) Then 'DEDICATED
+                        dedicatedString = "* if(dedicatedLimitCheck=true,1,0)"
+                    ElseIf IsInArray(currentCompanyName, terrorismCompanies) Then 'TRIA
+                        dedicatedString = "* if(includeTRIACheck=true,1,0)"
+                    End If
+                    '*** Use this to move scale only into primary
+                    scalePrimaryOnlyString = ""
+                    
+                    If IsInArray(currentCompanyName, aggregateCompanies) Then
+                        scalePrimaryOnlyString = "if(pExtAgg>0," & _
+                        tCell.Offset(0, trueScaleOffset).address(0, 0) & "*pExtAgg" & _
+                        "*topScale*" & tCell.Offset(0, locationScaleOffset).address(0, 0) & _
+                        ",if(premiumOverMatrixAllocation=0,topscale*" & _
+                        tCell.Offset(0, locationScaleOffset).address(0, 0) & ",1))*" & _
+                        Range(firstCompany).Offset(-2, i - 1).address(0, 0)
+                    ElseIf IsInArray(currentCompanyName, primaryCompanies) Then
+                        scalePrimaryOnlyString = "if(pExtPrim>0," & _
+                        tCell.Offset(0, trueScaleOffset).address(0, 0) & "*" & _
+                        "pExtPrim" & _
+                        "*topScale*" & tCell.Offset(0, locationScaleOffset).address(0, 0) & _
+                        ",if(premiumOverMatrixAllocation=0,topscale*" & _
+                        tCell.Offset(0, locationScaleOffset).address(0, 0) & ",1))*" & _
+                        Range(firstCompany).Offset(-2, i - 1).address(0, 0)
+                    ElseIf IsInArray(currentCompanyName, noScaleCompanies) Then
+                        scalePrimaryOnlyString = Range(firstCompany).Offset(-2, i - 1).address(0, 0)
+                    Else
+                        scalePrimaryOnlyString = "if(pExtExcess>0," & _
+                        tCell.Offset(0, trueScaleOffset).address(0, 0) & "*" & _
+                        "pExtExcess" & _
+                        "*topScale*" & tCell.Offset(0, locationScaleOffset).address(0, 0) & _
+                        ",if(premiumOverMatrixAllocation=0,topscale*" & _
+                        tCell.Offset(0, locationScaleOffset).address(0, 0) & ",1))*" & _
+                        Range(firstCompany).Offset(-2, i - 1).address(0, 0)
+                    End If
+
+                    Set o = oCell.Offset((tCell.Row - oCell.Row), i - 1)
+                    layerPercent = companyRange.Cells(i, 3).address(0, 0, xlA1, 1)
+                    companyRate = rateRange.Cells(j, p + 1).address(0, 0, xlA1, 1) & "*" & companyRange.Cells(i, 14).address(0, 0, xlA1, 1)
+                    
+                    o.Value = "=" & scalePrimaryOnlyString & "*" & layerPercent & _
+                    "*" & layerScale & "*" & ageDebit & "*" & sprinklerCredit & "*" & _
+                    hailDebit & "*" & floodLimitDebit & "*" & cleanCredit & "*" & extinguisherCredit & _
+                    "*" & crimeCredit & "*" & rllCredit & "*" & siteManagerCredit & _
+                    "*" & companyRate & "*" & calcTIV & "*" & _
+                    proRataAddress
+                    
+                    If tCell.Offset(0, catScenarioOffset).Value2 > 0 Then
+                        o.Formula = o.Formula & " + " & layerPercent & "*" & Range(firstCompany).Offset(-2, i - 1).address(0, 0) & _
+                        "*" & companyRate & "*" & calcTIV & _
+                        "*" & proRataAddress & _
+                        "*" & companyRange.Cells(i, tCell.Offset(0, catScenarioOffset).Value2 + 7)
+                        Select Case tCell.Offset(0, catScenarioOffset).Value2
+                            Case Is = 1
+                                catNote = "; TX to VA Load = " & companyRange.Cells(i, tCell.Offset(0, catScenarioOffset).Value2 + 7)
+                            Case Is = 2
+                                catNote = "; FL Load = " & companyRange.Cells(i, tCell.Offset(0, catScenarioOffset).Value2 + 7)
+                            Case Is = 3
+                                catNote = "; North of VA Load = " & companyRange.Cells(i, tCell.Offset(0, catScenarioOffset).Value2 + 7)
+                            Case Is = 4
+                                catNote = "; NM Quake Load = " & companyRange.Cells(i, tCell.Offset(0, catScenarioOffset).Value2 + 7)
+                            Case Is = 5
+                                catNote = "; PNW Quake Load = " & companyRange.Cells(i, tCell.Offset(0, catScenarioOffset).Value2 + 7)
+                            Case Is = 6
+                                catNote = "; Hawaii Load = " & companyRange.Cells(i, tCell.Offset(0, catScenarioOffset).Value2 + 7)
+                        End Select
+                    End If
+                    
+                    orig_formula = o.Formula
+                    orig_formula = Mid(orig_formula, 1, 1) & "(" & Mid(orig_formula, 2) & ")"
+                    
+                    o.Formula = orig_formula & "*0.01" & dedicatedString
+                        
+                    o.Formula = o.Formula & "+N(" & Chr(34) & " AgeDebit = " & ageDebit & _
+                        "; HD = " & hailDebit & _
+                        "; SC = " & sprinklerCredit & _
+                        "; FD = " & floodLimitDebit & _
+                        "; ClC = " & cleanCredit & _
+                        "; EC = " & extinguisherCredit & _
+                        "; CrC = " & crimeCredit & _
+                        "; RL = " & rllCredit & _
+                        "; SM = " & siteManagerCredit & _
+                        "; BR = " & Format(rateRange.Cells(j, p + 1).Value2, "#.####") & _
+                        "; C% = " & companyRange.Cells(i, 3).Value2 & _
+                        "; LS = " & layerScale & _
+                        "; WC = " & waterDamDedCredit & _
+                        "; WL = " & waterDamLimitCredit & _
+                        "; " & catNote & _
+                        Chr(34) & ")"
+                        
+                        ageDebit = ageDebitOld
+                        hailDebit = hailDebitOld
+                        sprinklerCredit = sprinklerCreditOld
+                        floodLimitDebit = floodLimitDebitOld
+                        cleanCredit = cleanCreditOld
+                        crimeCredit = crimeCreditOld
+                        extinguisherCredit = extinguisherCreditOld
+                        rllCredit = rllCreditOld
+                        siteManagerCredit = siteManagerCreditOld
+                        waterDamDedCredit = waterDamDedCreditOld
+                        waterDamLimitCredit = waterDamLimitCreditOld
+                End If
+            Next j
+        Next i
+noChange:
+    Next tCell
+    
+' ADD CAT LOAD
+Debug.Print "starting cat load" & " " & Round(Timer - startTime, 0) & " Seconds"
+
+    For Each tCell In oValues
+                    
+    tempSum = 0
+        For i = 1 To companyRange.Rows.count
+            currentCompanyName = companyRange.Cells(i, 2)
+            If IsInArray(currentCompanyName, catLoadCompanies) Then
+                totalCatAAL = tCell.Offset(0, catLoadOffset).Value2 + _
+                     tCell.Offset(0, catLoadOffset + 1).Value2 + _
+                     tCell.Offset(0, catLoadOffset + 2).Value2
+                If totalCatAAL <> 0 Then
+                    If Range(Range("catLoadTrigger").Value2).Offset(1, 0).Value2 >= 0 Then
+                        catPlusMinus = " + "
+                    ElseIf Range(Range("catLoadTrigger").Value2).Offset(1, 0).Value2 < 0 Then
+                        catPlusMinus = " - "
+                    End If
+                    orig_formula = tCell.Offset(0, oCell.Column + i - 1 - 2).Formula
+                    orig_formula = Mid(orig_formula, 1, 1) & "(" & Mid(orig_formula, 2) & _
+                        catPlusMinus & _
+                        " (catMultiple * " & proRataAddress & "* sum(" & tCell.Offset(0, catLoadOffset).address(0, 0) & _
+                        ":" & tCell.Offset(0, catLoadOffset + 2).address(0, 0) & ")" & _
+                        " * " & companyRange.Cells(i, 3).address(0, 0, xlA1, 1) & _
+                        "*" & companyRange.Cells(i, 6).address(0, 0, xlA1, 1) & _
+                        "*" & tCell.Offset(oCell.Row - tCell.Row - 3, oCell.Column + i - 3).address(0, 0) & "))" ' note the cat multiple here is the name on the sheet, not the variable in the vba; might be confusing
+                    tCell.Offset(0, oCell.Column + i - 1 - 2).Formula = orig_formula
+                Else
+                    orig_formula = tCell.Offset(0, oCell.Column + i - 1 - 2).Formula
+                    orig_formula = Mid(orig_formula, 1, 1) & "(" & Mid(orig_formula, 2) & ")"
+                    tCell.Offset(0, oCell.Column + i - 1 - 2).Formula = orig_formula
+                End If
+            Else
+                orig_formula = tCell.Offset(0, oCell.Column + i - 1 - 2).Formula
+                orig_formula = Mid(orig_formula, 1, 1) & "(" & Mid(orig_formula, 2) & ")"
+                tCell.Offset(0, oCell.Column + i - 1 - 2).Formula = orig_formula
+            End If
+            
+            'Add Rounding Here per cell
+            orig_formula = tCell.Offset(0, oCell.Column + i - 1 - 2).Formula
+            orig_formula = Mid(orig_formula, 1, 1) & "round(" & Mid(orig_formula, 2) & ",2)"
+            tCell.Offset(0, oCell.Column + i - 1 - 2).Formula = orig_formula
+        Next i
+        
+    Debug.Print tCell.Row
+    Next tCell
+    
+    oCell.Offset(0, i - 1).EntireColumn.AutoFit
+'********* Unique Numbering ***********
+Dim LocNum As Range
+locationNumber = Int(Now_Timer / 100000)
+For Each numCell In oValues
+    Set LocNum = numCell.Offset(0, locNumOffset)
+        If LocNum.Value = "" Then
+            LocNum.Value = locationNumber
+            locationNumber = locationNumber + 1
+        End If
+Next numCell
+Range("checkDuplicateLocs") = "=SUMPRODUCT((A9:A" & lastRow & "<>" & _
+Chr(34) & Chr(34) & ")/COUNTIF(A9:A" & lastRow & ",A9:A" & lastRow & "&" & Chr(34) & Chr(34) & "))" & -(lastRow - 8)
+If Range("checkDuplicateLocs") <> 0 Then MsgBox ("Please check for duplicate location numbers")
+
+Debug.Print "unique numbering done" & " " & Round(Timer - startTime, 0) & " Seconds"
+'******** End Unique Numbering **************
+'******** Copy Scale to other cells for help in IMS **********
+For Each cCell In oValues
+    cCell.Offset(0, scaleOffset).Formula = "=topscale"
+    If IsEmpty(cCell.Offset(0, squareOffset)) = True Then
+        If cCell.Offset(0, squareFootageOffset).Value2 > 0 Then
+            cCell.Offset(0, squareOffset).Formula = "=" & cCell.Offset(0, buildingValueOffset).address(0, 0) & "/" & cCell.Offset(0, squareFootageOffset).address(0, 0)
+        Else
+            cCell.Offset(0, squareOffset).Value2 = "Check SF"
+        End If
+    End If
+    If IsEmpty(cCell.Offset(0, newTIVOffset)) = True Then
+        cCell.Offset(0, newTIVOffset).Formula = "=sum(" & cCell.Offset(0, buildingValueOffset).address(0, 0) & ":" & cCell.Offset(0, buildingValueOffset + 2).address(0, 0) & ")"
+    End If
+    cCell.Offset(0, trueScaleOffset).Value = 1
+    If IsEmpty(cCell.Offset(0, locationScaleOffset)) = True Then
+        cCell.Offset(0, locationScaleOffset).Value = 1
+    End If
+    If LCase(cCell.Offset(0, priceActionOffset).Value) = "delete" And deleteFAL = 0 Then
+        deleteFAL = MsgBox("There is a delete, do you want to zero out the FAL?", vbYesNo)
+        Range("endoType").Value = 2
+    End If
+    
+    'delete the 'newtiv' column if there is a delete and the 'oldtiv' has a value throw an error if delete and oldtiv empty
+    If LCase(cCell.Offset(0, priceActionOffset).Value) = "delete" And cCell.Offset(0, oldTIVOffset).Value > 0 Then
+        cCell.Offset(0, newTIVOffset).Value = 0
+    ElseIf LCase(cCell.Offset(0, priceActionOffset).Value) = "delete" And cCell.Offset(0, oldTIVOffset).Value = 0 Then
+        MsgBox ("uh oh, there is a Delete transaction, but there is no Old TIV.  We will stop the rater so you can fix it on line " & cCell.Row)
+        GoTo finish
+    ElseIf LCase(cCell.Offset(0, priceActionOffset).Value) = "add" And cCell.Offset(0, oldTIVOffset).Value > 0 Then
+        cCell.Offset(0, oldTIVOffset).Value = 0
+    ElseIf LCase(cCell.Offset(0, priceActionOffset).Value) = "add" And cCell.Offset(0, newTIVOffset).Value = 0 Then
+        MsgBox ("uh oh, there is an Add transaction, but there is no New TIV.  We will stop the rater so you can fix it on line " & cCell.Row)
+    ElseIf LCase(cCell.Offset(0, priceActionOffset).Value) = "change" And (cCell.Offset(0, newTIVOffset).Value = 0 Or cCell.Offset(0, oldTIVOffset).Value = 0) Then
+        MsgBox ("uh oh, there is a Change transaction, but there is no New TIV or Old TIV.  Maybe this should be an Add or Delete?  Please check it on line " & cCell.Row)
+    End If
+Next cCell
+
+Debug.Print "done with checking adds deletes" & " " & Round(Timer - startTime, 0) & " Seconds"
+
+'******** End Copy Scale ***********
+    For Each cCell In oValues                                                                   'sum the premiums
+        cCell.Offset(0, premiumOffset).Formula = "=sum(" & _
+        oCell.Offset(cCell.Row - oCell.Row, 0).address(0, 0) & ":" & _
+        oCell.Offset(cCell.Row - oCell.Row, Range(lastCompany).Column - oCell.Column).address(0, 0) & ")"
+    Next cCell
+Debug.Print "top sums done" & " " & Round(Timer - startTime, 0) & " Seconds"
+    topLeft.Offset(0, accountPremiumOffset).Formula = "=sum(" & topLeft.Offset(0, premiumOffset).address(0, 0) _
+        & ":" & topLeft.Offset(groupEndRow - groupStartRow, premiumOffset).address(0, 0) & ")"
+    If LCase(Trim(priceAction)) = "add" Then
+        topLeft.Offset(0, accountRateOffset).Formula = "=100*" & _
+        topLeft.Offset(0, accountPremiumOffset).address(0, 0) & _
+        "/sum(" & topLeft.Offset(0, newTIVOffset).address(0, 0) & _
+        ":" & topLeft.Offset(groupEndRow - groupStartRow, newTIVOffset).address(0, 0) & _
+        ")/" & topLeft.Offset(0, proRataOffset).address
+    ElseIf LCase(Trim(priceAction)) = "delete" Then
+        topLeft.Offset(0, accountRateOffset).Formula = "=100*" & _
+        topLeft.Offset(0, accountPremiumOffset).address(0, 0) & _
+        "/sum(" & topLeft.Offset(0, oldTIVOffset).address(0, 0) & _
+        ":" & topLeft.Offset(groupEndRow - groupStartRow, oldTIVOffset).address(0, 0) & _
+        ")/" & topLeft.Offset(0, proRataOffset).address
+    ElseIf LCase(Trim(priceAction)) = "change" Then
+        topLeft.Offset(0, accountRateOffset).Formula = "=100*" & _
+        topLeft.Offset(0, accountPremiumOffset).address(0, 0) & _
+        "/(sum(" & topLeft.Offset(0, newTIVOffset).address(0, 0) & _
+        ":" & topLeft.Offset(groupEndRow - groupStartRow, newTIVOffset).address(0, 0) & _
+        ") - sum(" & topLeft.Offset(0, oldTIVOffset).address(0, 0) & _
+        ":" & topLeft.Offset(groupEndRow - groupStartRow, oldTIVOffset).address(0, 0) & _
+        "))/" & topLeft.Offset(0, proRataOffset).address
+    End If
+    For Each cCell In oValues                                           'calculate the rates
+        If LCase(Trim(priceAction)) = "add" Then
+            cCell.Offset(0, rateOffset).Formula = _
+            "=round(100*" & cCell.Offset(0, premiumOffset).address(0, 0) & _
+            "/" & cCell.Offset(0, newTIVOffset).address(0, 0) & _
+            "/" & cCell.Offset(0, proRataOffset).address(0, 0) & ",9)"
+        ElseIf LCase(Trim(priceAction)) = "delete" Then
+            cCell.Offset(0, rateOffset).Formula = _
+            "=round(100*" & cCell.Offset(0, premiumOffset).address(0, 0) & _
+            "/" & cCell.Offset(0, oldTIVOffset).address(0, 0) & _
+            "/" & cCell.Offset(0, proRataOffset).address(0, 0) & ",10)"
+        ElseIf LCase(Trim(priceAction)) = "change" Then
+            cCell.Offset(0, rateOffset).Formula = _
+            "=round(100*" & cCell.Offset(0, premiumOffset).address(0, 0) & _
+            "/(" & cCell.Offset(0, newTIVOffset).address(0, 0) & " - " & _
+                   cCell.Offset(0, oldTIVOffset).address(0, 0) & ")" & _
+            "/" & cCell.Offset(0, proRataOffset).address(0, 0) & ",10)"
+        End If
+    Next cCell
+    
+Debug.Print "rates calculated" & " " & Round(Timer - startTime, 0) & " Seconds"
+totalRow = Range("LocNum").Offset(100000, 0).End(xlUp).Row
+'Add the totals to the TOP
+For i = 1 To companyRange.Rows.count
+    oCell.Offset(-1, i - 1).Formula = "=sum(" & oCell.Offset(1, i - 1).address(0, 0) & ":" & oCell.Offset(totalRow - headerRow, i - 1).address(0, 0) & ")"
+    oCell.Offset(0, i - 1).EntireColumn.AutoFit
+Next i
+Range("wScale").Formula = "=sum(" & Range("weightedScale").Offset(1, 0).address(0, 0, , 1) & ":" & _
+    Range("weightedScale").Offset(totalRow - headerRow, 0).address(0, 0, , 1) & ")"
+Range("costPerSquare").Offset(-1, 0).Formula = "=sum(" & Range("buildingValue").Offset(1, 0).address(0, 0) & ":" & _
+    Range("buildingValue").Offset(totalRow - headerRow, 0).address(0, 0) & ")/sum(" & Range("squareFootage").Offset(1, 0).address(0, 0) & ":" & _
+    Range("squareFootage").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+
+Range("EQAAL").Offset(-1, 0).Formula = "=sum(" & Range("EQAAL").Offset(1, 0).address(0, 0) & ":" & _
+    Range("EQAAL").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("SCAAL").Offset(-1, 0).Formula = "=sum(" & Range("SCAAL").Offset(1, 0).address(0, 0) & ":" & _
+    Range("SCAAL").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("NSAAL").Offset(-1, 0).Formula = "=sum(" & Range("NSAAL").Offset(1, 0).address(0, 0) & ":" & _
+    Range("NSAAL").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("buildingValue").Offset(-1, 0).Formula = "=sum(" & Range("buildingValue").Offset(1, 0).address(0, 0) & ":" & _
+    Range("buildingValue").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("bppValue").Offset(-1, 0).Formula = "=sum(" & Range("bppValue").Offset(1, 0).address(0, 0) & ":" & _
+    Range("bppValue").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("biValue").Offset(-1, 0).Formula = "=sum(" & Range("biValue").Offset(1, 0).address(0, 0) & ":" & _
+    Range("biValue").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("newTIV").Offset(-1, 0).Formula = "=sum(" & Range("newTIV").Offset(1, 0).address(0, 0) & ":" & _
+    Range("newTIV").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("oldTIV").Offset(-1, 0).Formula = "=sum(" & Range("oldTIV").Offset(1, 0).address(0, 0) & ":" & _
+    Range("oldTIV").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+    
+Range("Premium").Offset(-1, 0).Formula = "=sum(" & Range("Premium").Offset(1, 0).address(0, 0) & ":" & _
+    Range("Premium").Offset(totalRow - headerRow, 0).address(0, 0) & ")"
+
+    '*** Use this to scale the numbers to get the same premium
+    Dim oldScale, currentPremium, oneHundredPctPremium As Double
+    Dim oldHowScalePrimary As Integer
+'******** trueScale Calculations and color row
+Application.Calculation = xlCalculationAutomatic
+For Each tCell In oValues
+    ' see if we need to solve for a target rate
+    Set a = tCell.Offset(0, targetRateOffset)
+    Set b = tCell.Offset(0, priceActionOffset)
+    If a.Value <> 0 Then 'we need to solve for the target rate
+        If a.Value > 0 And Trim(LCase(b.Value)) = "delete" Then 'see if the value is positive when it should be negative
+            a.Value = -a.Value
+        ElseIf a.Value < 0 And Trim(LCase(b.Value)) = "add" Then 'see if the value is negative when it should be positive
+            a.Value = -a.Value
+        End If
+        'store the reallocation percents
+        pExtAggValue = Range("pExtAgg").Value
+        pExtPrimValue = Range("pExtPrim").Value
+        pExtExcessValue = Range("pExtExcess").Value
+
+        'set the reallocations to zero and reset the truescale
+        Range("pExtAgg").Value = 0
+        Range("pExtPrim").Value = 0
+        Range("pExtExcess").Value = 0
+        tCell.Offset(0, trueScaleOffset).Value = 1
+
+        tCell.Offset(0, rateOffset).GoalSeek _
+        Goal:=a.Value, _
+        ChangingCell:=tCell.Offset(0, locationScaleOffset)
+        If tCell.Offset(0, locationScaleOffset) < 0 And Range("pExtAgg").Value > 0 Then
+            MsgBox ("You are attempting to solve for a rate that will make the aggregate premium negative. Please go back and change the allocation to the aggregate to be 0% and rerun.")
+            GoTo finish
+        End If
+        
+        'set the reallocations back
+        Range("pExtAgg").Value = pExtAggValue
+        Range("pExtPrim").Value = pExtPrimValue
+        Range("pExtExcess").Value = pExtExcessValue
+        
+    End If
+    'find the correct row truescale calculation to distribute premiums
+    If Range("pExtAgg").Value + Range("pExtPrim").Value + Range("pExtExcess").Value = 1 Then
+        currentPremium = tCell.Offset(0, premiumOffset).Value  'set the row's current premium value
+        
+        'store the reallocation percents
+        pExtAggValue = Range("pExtAgg").Value
+        pExtPrimValue = Range("pExtPrim").Value
+        pExtExcessValue = Range("pExtExcess").Value
+        
+        'set the reallocations to zero and reset the truescale
+        Range("pExtAgg").Value = 0
+        Range("pExtPrim").Value = 0
+        Range("pExtExcess").Value = 0
+        tCell.Offset(0, trueScaleOffset).Value = 1
+        oneHundredPctPremium = tCell.Offset(0, premiumOffset).Value  'this is the premium with no reallocations and with the locationscale and top scale set.
+        
+        'set the reallocations back
+        Range("pExtAgg").Value = pExtAggValue
+        Range("pExtPrim").Value = pExtPrimValue
+        Range("pExtExcess").Value = pExtExcessValue
+        
+        'find the truescale required to get to the correct premium for the row
+        tCell.Offset(0, premiumOffset).GoalSeek _
+        Goal:=oneHundredPctPremium, _
+        ChangingCell:=tCell.Offset(0, trueScaleOffset)
+    End If
+    'color the row if it's a new member, or other change
+    Set colorRow = Range("A" & tCell.Row).EntireRow
+    Set a = tCell.Offset(0, priceActionOffset)
+    If LCase(Trim(a.Value)) = "add" Then
+        'color black
+        With colorRow.Font
+            .Color = 0
+        End With
+    ElseIf LCase(Trim(a.Value)) = "change" Then
+        'color purple
+        With colorRow.Font
+            .Color = -6279056
+        End With
+    ElseIf LCase(Trim(a.Value)) = "delete" Then
+        'color red
+        With colorRow.Font
+            .Color = -16777024
+        End With
+    End If
+'************** CLEAR OUT DBB PREMIUM ON DELETES ***************
+    'if the DBB's have premium in them, set them to zero if it's a delete
+    If LCase(Trim(a.Value)) = "delete" Then
+        If deleteFAL = 6 Then
+            tCell.Offset(0, falOffset).Value2 = 0
+        End If
+        ConnectionString = "Provider=SQLOLEDB;Data Source=dc01db02;Trusted_connection=yes;"
+        cnn.Open ConnectionString
+        cnn.CommandTimeout = 60
+            StrQuery = "SELECT [LocNum] FROM [IMS_RT].[dbo].[Dynamic_Data_OwnersFirstRaterSOV] where locNum = " & tCell.Offset(0, locNumOffset).Value2
+            rst.Open StrQuery, cnn
+            If rst.EOF = True Then
+            MsgBox ("Location number " & tCell.Offset(0, locNumOffset).Value2 & " is trying to be deleted, but it not in the database; can you check it?")
+            End If
+            cnn.Close
+    End If
+    
+    If LCase(Trim(a.Value)) = "change" Then
+        ConnectionString = "Provider=SQLOLEDB;Data Source=dc01db02;Trusted_connection=yes;"
+        cnn.Open ConnectionString
+        cnn.CommandTimeout = 60
+            StrQuery = "SELECT [LocNum] FROM [IMS_RT].[dbo].[Dynamic_Data_OwnersFirstRaterSOV] where locNum = " & tCell.Offset(0, locNumOffset).Value2
+            rst.Open StrQuery, cnn
+            If rst.EOF = True Then
+            MsgBox ("Location number " & tCell.Offset(0, locNumOffset).Value2 & " is trying to be changed, but it not in the database; can you check it?")
+            End If
+            cnn.Close
+    End If
+'***************************************************************
+Next tCell
+Application.Calculation = xlCalculationManual
+Debug.Print "premium allocations between layers done and goal seeks for rates" & " " & Round(Timer - startTime, 0) & " Seconds"
+'********* End trueScale
+    
+Debug.Print "cat allocations done" & " " & Round(Timer - startTime, 0) & " Seconds"
+    '************* ROUNDING **************
+    tempSum = 0
+    For i = 1 To companyRange.Rows.count
+        For Each tCell In oValues
+            tempSum = tempSum + tCell.Offset(0, oCell.Column + i - 1 - 2).Value
+        Next tCell
+        tempDecimal = Round(tempSum - Int(tempSum), 2)
+        If tempDecimal >= 0.5 Then
+            topLeft.Offset(0, oCell.Column + i - 1 - 2).Formula = _
+                topLeft.Offset(0, oCell.Column + i - 1 - 2).Formula & " + round(" & (1 - tempDecimal) & ",2)"
+        ElseIf tempDecimal < 0.5 And tempDecimal <> 0 Then
+            topLeft.Offset(0, oCell.Column + i - 1 - 2).Formula = _
+                topLeft.Offset(0, oCell.Column + i - 1 - 2).Formula & " - round(" & tempDecimal & ",2)"
+        End If
+        tempSum = 0
+    Next i
+    
+    If premSeek = 1 Then
+        If Range("desiredPremium").Value2 <> Range("total").Value2 Then
+            Range("London_Agg_Layer").Offset(1, 0).Formula = Range("London_Agg_Layer").Offset(1, 0).Formula & "+" & Range("desiredPremium").Value2 - Range("total").Value2
+        End If
+    End If
+Debug.Print "rounding done" & " " & Round(Timer - startTime, 0) & " Seconds"
+    '*********END ROUNDING ***************
+'************ Store Terrorism Premium ****************
+ If Range("includeTRIACheck").Value = True Then
+    Range("staticTerrorism").Value = Range(terrorismCompanies(1, 1)).Offset(-1, 0).Value
+ ElseIf Range("includeTRIACheck").Value = False Then
+    Range("includeTRIACheck").Value = True
+    Range("staticTerrorism").Value = Range(terrorismCompanies(1, 1)).Offset(-1, 0).Value
+    Range("includeTRIACheck").Value = False
+End If
+'******** RUN GEOCODING *************
+Debug.Print "Geocoding..."
+Call GeocodeSOV
+Call PlaceKeyFinder
+
+Debug.Print "geocoding done" & " " & Round(Timer - startTime, 0) & " Seconds"
+'************* Error Checking ************
+Dim errorText As String
+'Check Numbering
+For Each cCell In oValues
+    If cCell.Offset(0, locNumOffset).Value < 1000000000 Then
+        errorText = errorText & vbNewLine & "Check Numbering"
+        Exit For
+    End If
+Next cCell
+'Check Flood Zones
+For Each cCell In oValues
+    If cCell.Offset(0, floodOffset).Value = "#N/A" Or cCell.Offset(0, floodOffset).Value = "" Then
+        MsgBox ("The flood zones don't look right; can you please check them?")
+        errorText = errorText & vbNewLine & "Check Flood Zones"
+        Exit For
+    End If
+Next cCell
+Debug.Print "flood checked" & " " & Round(Timer - startTime, 0) & " Seconds"
+'************* End Error Checking **********
+
+'CHECK TERRORISM HOT ZONES
+For Each cCell In oValues
+    Select Case cCell.Offset(0, zipOffset).Value
+        Case 10001 To 10013, 10016 To 10023, 10036, 10038, 60601 To 60606, 60611, 94102 To 94105, 94107, 94108, 94111, 20001, 20003, 20004, 20006, 20007, 20590, 2109, 2110, 2116, 77002, 98101
+            MsgBox ("You have a zip code in the terrorism hot zone.  This needs approval from James Dover at Hamilton.")
+            errorText = errorText & vbNewLine & "Get Terrorism Approved"
+            Range("terrorHot").Value2 = "Needs Approval"
+        Case Else
+            Range("terrorHot").Value2 = "Ok"
+        Exit For
+    End Select
+Next cCell
+
+For Each cCell In oValues
+    If cCell.Offset(0, newTIVOffset).Value > 450000000 Then Range("overFourFifty").Value = "Needs Approval"
+    If cCell.Offset(0, newTIVOffset).Value > 200000000 Then Range("overTwoHundred").Value = "Needs Approval"
+Next cCell
+
+Debug.Print "terrorism checked" & " " & Round(Timer - startTime, 0) & " Seconds"
+'END CHECK HOT ZONES
+count = 0
+'CHECK IF DEDICATED TERRORISM WAS CHECKED BUT NOT RUN
+Set ck = Sheets("Checklist").OLEObjects("DedicatedTerrorismBox")
+    If ck.Object.Value = True Then
+        Range("dedicatedTerrorism").Value = True
+        For Each cCell In oValues
+            count = count + 1
+            Sheets("Pricing Tool").Range(terrorismCompanies(1, 1)).Offset(count, 0).Formula = "=round(2*" & Sheets("Pricing Tool").Range(terrorismCompanies(1, 1)).Offset(-2, 0).address(0, 0) & "*.01*(bj" & count + 8 & "-bk" & count + 8 & ")*au9*companydata!e51*.01*IF(includeTRIACheck=TRUE,1,0),0)"
+        Next cCell
+    ElseIf ck.Object.Value = False Then
+        Range("dedicatedTerrorism").Value = False
+        For Each cCell In oValues
+            count = count + 1
+            Sheets("Pricing Tool").Range(terrorismCompanies(1, 1)).Offset(count, 0).Formula = "=round(" & Sheets("Pricing Tool").Range(terrorismCompanies(1, 1)).Offset(-2, 0).address(0, 0) & "*.01*(bj" & count + 8 & "-bk" & count + 8 & ")*au9*companydata!e51*.01*IF(includeTRIACheck=TRUE,1,0),0)"
+        Next cCell
+    End If
+    
+    If Range("includeTRIACheck").Value = True Then
+       Sheets("Pricing Tool").Range("staticTerrorism").Value = Sheets("Pricing Tool").Range(terrorismCompanies(1, 1)).Offset(-1, 0).Value
+    ElseIf Range("includeTRIACheck").Value = False Then
+       Range("includeTRIACheck").Value = True
+       Sheets("Pricing Tool").Range("staticTerrorism").Value = Sheets("Pricing Tool").Range(terrorismCompanies(1, 1)).Offset(-1, 0).Value
+       Range("includeTRIACheck").Value = False
+    End If
+'CHECK NY
+For Each cCell In oValues
+    If cCell.Offset(0, stateOffset).Value = "NY" Then
+        Range("noNY").Value2 = "Has NY"
+    Else
+        Range("noNY").Value2 = "Ok"
+    End If
+Next cCell
+Debug.Print "terrorism checked" & " " & Round(Timer - startTime, 0) & " Seconds"
+'END CHECK NY
+
+'Calculate weighted scale
+For Each cCell In oValues
+cCell.Offset(0, weightedScaleOffset).Value = "=topscale * " & cCell.Offset(0, premiumOffset).address(0, 0) & _
+    "*" & cCell.Offset(0, locationScaleOffset).address(0, 0) & _
+    "/" & topLeft.Offset(0, accountPremiumOffset).address(0, 0)
+Next cCell
+Debug.Print "weighed scale checked" & " " & Round(Timer - startTime, 0) & " Seconds"
+'End Calculate weighted scale
+skipCell:
+Range("A9").Select
+Dim summaryAddress As String
+Range("annualPremium").Value = "=sum(" & Range(firstCompany).Offset(-1, 0).address(0, 0, xlA1, True) _
+    & ":" & Range(lastCompany).Offset(-1, 0).address(0, 0, xlA1, True) & ")"
+Range("totalPremium").Value = "=annualPremium + dedBuydown"
+Range("brokerFee").Value = "=ROUND(IF(or(CheckHomeState = " & Chr(34) & "NJ" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "GA" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "DE" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "MT" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "MD" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "GA" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "CT" & Chr(34) & _
+    ")=TRUE,0,brokerFeePct*totalPremium + (inspectionLocations * 300)),0)"
+Range("inspectionFee").Value = "=IF(or(CheckHomeState = " & Chr(34) & "NJ" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "GA" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "DE" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "MT" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "MD" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "GA" & Chr(34) & _
+    ", CheckHomeState = " & Chr(34) & "CT" & Chr(34) & _
+    ")=TRUE,inspectionLocations * 300,0)"
+Range("total").Value = "=inspectionFee+brokerFee+membershipFee+totalPremium"
+Range("allInRate").Value = "=iferror(100*total/tiv/OFFSET('Pricing Tool'!proRata,1,0),0)"
+Range("premiumRate").Value = "=iferror(100*totalPremium/tiv/OFFSET('Pricing Tool'!proRata,1,0),0)"
+Range("topScale").NumberFormat = "General"
+'Check Sums
+Range("checkZero").Formula = "=sum(" & Range(firstCompany).Offset(1, 0).address(0, 0, , 1) & ":" & Range(lastCompany).Offset(lastRow - headerRow, 0).address(0, 0, , 1) & ")- annualPremium + " & Range("accountPremium").Offset(1, 0).address(0, 0, , 1) & " - sum(" & Range("Premium").Offset(1, 0).address(0, 0, , 1) & ":" & Range("Premium").Offset(lastRow - headerRow, 0).address(0, 0, , 1) & ")"
+'make loss history table
+For i = 0 To 10
+Range("lossTable").Offset(i, 0).Formula = Year(rwb.Range("EffectiveDate").Offset(1, 0).Value) - _
+    Range("lossTable").Offset(i, -1).Value & " - " & _
+    Year(rwb.Range("EffectiveDate").Offset(1, 0).Value) - Range("lossTable").Offset(i, -1).Value + 1
+Next i
+
+Debug.Print "macro premium calculations done" & " " & Round(Timer - startTime, 0) & " Seconds"
+
+'run the check for carriers
+Call AddWarningAndColor
+
+cwb.Activate
+Debug.Print "finishing" & " " & Round(Timer - startTime, 0) & " Seconds"
+finish:
+Range("scaleCheckStatus").Value = ""
+secondsElapsed = Round(Timer - startTime, 0)
+If cellsHaveErrors > 0 Then
+    MsgBox ("Done in " & secondsElapsed & " seconds" & vbNewLine & errorText & " and there are " & cellsHaveErrors & " cell(s) with error values, please check them.")
+Else
+    MsgBox ("Done in " & secondsElapsed & " seconds")
+End If
+If Range("brokerFeePct") <> 0.1 Then
+    MsgBox ("The broker fee is not 10%, so make sure the commission is correct in IMS.")
+End If
+cwb.Activate
+Range("total").Select
+Call OptimizeCode_End
+End Sub
