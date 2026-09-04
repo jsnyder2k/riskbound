@@ -1,0 +1,378 @@
+<title>Beaky's Berry Catch</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&family=Nunito:wght@600;800&display=swap">
+<style>
+  :root{
+    --sky:#DCEFFA; --sky-deep:#BFE0F7; --plush:#9CC4E4; --plush-deep:#5F92BE;
+    --beak:#F2A184; --beak-light:#F9C9B3; --foot:#E8562A; --foot-deep:#B83D18;
+    --grass:#8FCB6E; --ink:#26405A; --ink-soft:#5C7A96; --card:#FFFFFF; --sun:#FFD766;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{background:var(--sky);color:var(--ink);font-family:'Nunito',system-ui,sans-serif;min-height:100vh;margin:0}
+  .app{max-width:520px;margin:0 auto;padding:14px 12px 28px;display:flex;flex-direction:column;gap:12px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  h1{font-family:'Fredoka','Nunito',sans-serif;font-weight:700;font-size:26px;margin:0;line-height:1.1;text-wrap:balance}
+  .stats{display:flex;gap:8px}
+  .patch{background:var(--beak);color:#5A2A18;border-radius:16px;padding:6px 12px;min-width:74px;text-align:center;
+    box-shadow:inset 0 0 0 2px var(--beak-light), 0 3px 0 #D98B6C}
+  .patch b{display:block;font-family:'Fredoka',sans-serif;font-size:26px;line-height:1;font-variant-numeric:tabular-nums}
+  .patch span{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+  .icon{background:var(--card);border:0;border-radius:14px;width:42px;height:42px;font-size:20px;cursor:pointer;
+    box-shadow:0 3px 0 #B8CCDD;color:var(--ink)}
+  .icon:focus-visible,.btn:focus-visible,.pad:focus-visible,input:focus-visible{outline:3px solid var(--foot);outline-offset:2px}
+  .stage{position:relative;border-radius:26px;overflow:hidden;box-shadow:0 14px 34px rgba(38,64,90,.2);background:var(--sky-deep)}
+  canvas{display:block;width:100%;height:auto;touch-action:none}
+  .overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(220,239,250,.45)}
+  .card{background:var(--card);border-radius:28px;padding:24px 22px;width:100%;max-width:330px;text-align:center;
+    box-shadow:0 12px 34px rgba(38,64,90,.22);display:flex;flex-direction:column;gap:14px;align-items:center}
+  .card h2{font-family:'Fredoka',sans-serif;font-weight:700;font-size:30px;margin:0;line-height:1.05;text-wrap:balance}
+  .card p{margin:0;font-size:15px;font-weight:600;line-height:1.45;color:var(--ink-soft)}
+  .card p strong{color:var(--ink)}
+  label{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);display:flex;flex-direction:column;gap:6px;width:100%}
+  input{font:inherit;font-family:'Fredoka',sans-serif;font-size:22px;text-align:center;border:3px solid var(--plush);border-radius:16px;padding:8px;width:100%;color:var(--ink);background:#F3F9FD}
+  .btn{font-family:'Fredoka',sans-serif;font-weight:700;font-size:26px;background:var(--foot);color:#fff;border:0;border-radius:999px;
+    padding:12px 44px;box-shadow:0 6px 0 var(--foot-deep);cursor:pointer;transition:transform .08s}
+  .btn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--foot-deep)}
+  .stars{display:flex;gap:6px;justify-content:center}
+  .stars svg{width:44px;height:44px}
+  .best{font-size:13px;font-weight:800;color:var(--ink-soft);letter-spacing:.04em}
+  .pads{display:flex;gap:12px}
+  .pad{flex:1;height:78px;border-radius:24px;background:var(--plush);border:0;color:#fff;cursor:pointer;
+    box-shadow:0 6px 0 var(--plush-deep);touch-action:none;user-select:none;-webkit-user-select:none;display:grid;place-items:center}
+  .pad:active,.pad.down{transform:translateY(4px);box-shadow:0 2px 0 var(--plush-deep)}
+  .pad svg{width:38px;height:38px;fill:#fff}
+  .hint{text-align:center;font-size:13px;font-weight:700;color:var(--ink-soft);margin:0}
+  @media (prefers-reduced-motion:reduce){.btn,.pad{transition:none}}
+</style>
+
+<div class="app">
+  <header>
+    <h1 id="title">Beaky's Berry Catch</h1>
+    <div class="stats">
+      <div class="patch"><b id="score">0</b><span>berries</span></div>
+      <div class="patch"><b id="time">60</b><span>seconds</span></div>
+    </div>
+    <button class="icon" id="mute" aria-label="Sound on" title="Sound">🔊</button>
+  </header>
+
+  <div class="stage">
+    <canvas id="game" width="480" height="640" aria-label="Beaky the blue bird catching berries"></canvas>
+
+    <div class="overlay" id="start">
+      <div class="card">
+        <h2>Feed the hungry bird!</h2>
+        <p>Slide your finger (or use <strong>←</strong> and <strong>→</strong>) to run along the grass. Catch berries in that <strong>big beak</strong>. Gold stars are worth <strong>5</strong>. Dodge raindrops or you'll get the wobbles!</p>
+        <label>Your bird's name
+          <input id="name" maxlength="12" value="Beaky" autocomplete="off" spellcheck="false">
+        </label>
+        <button class="btn" id="play">Play!</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="end" hidden>
+      <div class="card">
+        <div class="stars" id="stars"></div>
+        <h2 id="endTitle">Beaky caught 0 berries!</h2>
+        <p id="endText">Snack time!</p>
+        <div class="best" id="best">BEST: 0</div>
+        <button class="btn" id="again">Play again</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="pads">
+    <button class="pad" id="padL" aria-label="Run left"><svg viewBox="0 0 24 24"><path d="M15.5 4 7 12l8.5 8 2-2-6.5-6 6.5-6z"/></svg></button>
+    <button class="pad" id="padR" aria-label="Run right"><svg viewBox="0 0 24 24"><path d="M8.5 4 17 12l-8.5 8-2-2 6.5-6-6.5-6z"/></svg></button>
+  </div>
+  <p class="hint">Tip: hold a button to run, or drag right on the grass.</p>
+</div>
+
+<script>
+(function(){
+  const W=480, H=640, GROUND=H-84;
+  const cv=document.getElementById('game'), ctx=cv.getContext('2d');
+  const dpr=Math.min(2, window.devicePixelRatio||1);
+  cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  const $=s=>document.querySelector(s);
+  const ui={score:$('#score'),time:$('#time'),title:$('#title'),start:$('#start'),end:$('#end'),name:$('#name'),
+    play:$('#play'),again:$('#again'),endTitle:$('#endTitle'),endText:$('#endText'),stars:$('#stars'),best:$('#best'),
+    mute:$('#mute'),padL:$('#padL'),padR:$('#padR')};
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- saved bits ----------
+  let name='Beaky', best=0;
+  try{ name=localStorage.getItem('beaky-name')||'Beaky'; best=+localStorage.getItem('beaky-best')||0; }catch(e){}
+  ui.name.value=name; setTitle();
+  function setTitle(){ ui.title.textContent=name+"'s Berry Catch"; }
+
+  // ---------- sound ----------
+  let ac=null, muted=false;
+  function ensureAudio(){
+    if(!ac){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(ac&&ac.state==='suspended') ac.resume();
+  }
+  function tone(f,t0,dur,type,vol){
+    if(!ac||muted) return;
+    const o=ac.createOscillator(), g=ac.createGain(), t=ac.currentTime+t0;
+    o.type=type||'sine'; o.frequency.setValueAtTime(f,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.16,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(ac.destination); o.start(t); o.stop(t+dur+0.05);
+  }
+  const sfx={
+    catch:()=>{ tone(660,0,0.12); tone(880,0.07,0.16); },
+    star:()=>{ [523,659,784,1047].forEach((f,i)=>tone(f,i*0.07,0.18,'triangle',0.14)); },
+    drop:()=>{ tone(240,0,0.22,'triangle',0.18); tone(190,0.12,0.3,'triangle',0.16); },
+    plop:()=>{ tone(320,0,0.08,'sine',0.05); },
+    tick:()=>{ tone(880,0,0.05,'square',0.05); },
+    start:()=>{ tone(784,0,0.1,'triangle',0.12); tone(1047,0.1,0.18,'triangle',0.12); },
+    end:()=>{ [523,659,784,1047,784,1047,1319].forEach((f,i)=>tone(f,i*0.1,0.22,'triangle',0.14)); }
+  };
+  ui.mute.addEventListener('click',()=>{ muted=!muted; ui.mute.textContent=muted?'🔇':'🔊'; ui.mute.setAttribute('aria-label',muted?'Sound off':'Sound on'); });
+
+  // ---------- state ----------
+  const ROUND=60;
+  const state={mode:'start',score:0,time:ROUND,elapsed:0,spawnT:1,items:[],parts:[],floats:[],confetti:[]};
+  const bird={x:W/2,vx:0,face:1,beak:0,dizzy:0,flap:0,blink:0,blinkT:2,t:0,bob:0};
+  const input={left:false,right:false,pad:0,target:null};
+  const clouds=[{x:60,y:96,s:1,v:7},{x:290,y:58,s:.72,v:11},{x:410,y:150,s:.86,v:5}];
+  const FUZZ=[]; for(let i=0;i<30;i++) FUZZ.push(((i*7919)%97)/97);
+
+  const rand=(a,b)=>a+Math.random()*(b-a);
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+  const COL={berry:'#5A66C9',straw:'#E8453C',star:'#FFD54A',drop:'#5CB4F0'};
+  const TYPES={berry:{r:13,pts:1,w:50},straw:{r:14,pts:1,w:28},star:{r:15,pts:5,w:7},drop:{r:11,pts:0,w:15}};
+  function pickType(){
+    let tot=0; for(const k in TYPES) tot+=TYPES[k].w;
+    let r=Math.random()*tot;
+    for(const k in TYPES){ r-=TYPES[k].w; if(r<=0) return k; }
+    return 'berry';
+  }
+  function spawn(){
+    const t=pickType(), speed=(t==='drop'?200:130)+state.elapsed*2.2;
+    state.items.push({t,x:rand(40,W-40),y:-30,vy:rand(speed,speed+50),r:TYPES[t].r,ph:Math.random()*6.28,rot:Math.random()*6.28});
+  }
+  function burst(x,y,col,n){
+    for(let i=0;i<n;i++){ const a=rand(0,6.28), s=rand(60,200);
+      state.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-80,life:rand(.4,.8),col,r:rand(3,6)}); }
+  }
+  function floatText(x,y,text,col){ state.floats.push({x,y,text,col,life:1}); }
+
+  function catchItem(it){
+    const d=TYPES[it.t];
+    if(it.t==='drop'){ bird.dizzy=1.2; floatText(bird.x,GROUND-120,'Brr!','#3B86C4'); burst(it.x,it.y,COL.drop,8); sfx.drop(); return; }
+    state.score+=d.pts; bird.beak=1;
+    floatText(bird.x,GROUND-120,'+'+d.pts,it.t==='star'?'#D89A00':'#26405A');
+    burst(it.x,it.y,COL[it.t],it.t==='star'?14:8);
+    it.t==='star'?sfx.star():sfx.catch();
+    ui.score.textContent=state.score;
+  }
+
+  function startRound(){
+    ensureAudio();
+    name=(ui.name.value.trim()||'Beaky').slice(0,12); ui.name.value=name; setTitle();
+    try{ localStorage.setItem('beaky-name',name); }catch(e){}
+    state.mode='play'; state.score=0; state.time=ROUND; state.elapsed=0; state.spawnT=0.8;
+    state.items.length=0; state.parts.length=0; state.floats.length=0; state.confetti.length=0;
+    bird.x=W/2; bird.vx=0; bird.dizzy=0; input.target=null;
+    ui.score.textContent='0'; ui.time.textContent=ROUND;
+    ui.start.hidden=true; ui.end.hidden=true; sfx.start();
+  }
+  function endRound(){
+    state.mode='end'; state.time=0; ui.time.textContent='0'; state.items.length=0;
+    const s=state.score;
+    if(s>best){ best=s; try{ localStorage.setItem('beaky-best',best); }catch(e){} }
+    const n=s>=30?3:s>=20?2:s>=10?1:0;
+    ui.stars.innerHTML=[0,1,2].map(i=>'<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z" fill="'+(i<n?'#FFD54A':'#E3EBF2')+'" stroke="'+(i<n?'#D89A00':'#C7D3DD')+'" stroke-width="1.2"/></svg>').join('');
+    ui.endTitle.textContent=name+' caught '+s+(s===1?' berry!':' berries!');
+    ui.endText.textContent= s>=30?'SUPER CATCHER! '+name+' is stuffed full!' : s>=20?'Wow! What a hungry bird!' : s>=10?'Yummy! A nice full tummy.' : 'Good try! Let\'s find more berries.';
+    ui.best.textContent='BEST: '+best;
+    ui.end.hidden=false; sfx.end();
+    if(!reduce) for(let i=0;i<110;i++) state.confetti.push({x:rand(0,W),y:rand(-H,-10),vy:rand(90,190),vx:rand(-30,30),
+      rot:rand(0,6.28),vr:rand(-4,4),w:rand(6,11),h:rand(8,16),col:[COL.berry,COL.straw,COL.star,'#9CC4E4','#F2A184','#8FCB6E'][i%6]});
+  }
+  ui.play.addEventListener('click',startRound);
+  ui.again.addEventListener('click',startRound);
+  ui.name.addEventListener('keydown',e=>{ if(e.key==='Enter') startRound(); });
+
+  // ---------- input ----------
+  addEventListener('keydown',e=>{
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){ input.left=true; e.preventDefault(); }
+    if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){ input.right=true; e.preventDefault(); }
+  });
+  addEventListener('keyup',e=>{
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') input.left=false;
+    if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') input.right=false;
+  });
+  function pad(el,dir){
+    const down=e=>{ input.pad=dir; el.classList.add('down'); try{ el.setPointerCapture(e.pointerId); }catch(x){} e.preventDefault(); };
+    const up=()=>{ if(input.pad===dir) input.pad=0; el.classList.remove('down'); };
+    el.addEventListener('pointerdown',down); el.addEventListener('pointerup',up);
+    el.addEventListener('pointercancel',up); el.addEventListener('lostpointercapture',up);
+  }
+  pad(ui.padL,-1); pad(ui.padR,1);
+  let dragging=false;
+  function setTarget(e){ const r=cv.getBoundingClientRect(); input.target=clamp((e.clientX-r.left)/r.width*W,92,W-92); }
+  cv.addEventListener('pointerdown',e=>{ dragging=true; setTarget(e); try{ cv.setPointerCapture(e.pointerId); }catch(x){} });
+  cv.addEventListener('pointermove',e=>{ if(dragging) setTarget(e); });
+  cv.addEventListener('pointerup',()=>dragging=false);
+  cv.addEventListener('pointercancel',()=>dragging=false);
+
+  // ---------- update ----------
+  function update(dt){
+    bird.t+=dt;
+    bird.blinkT-=dt; if(bird.blinkT<=0){ bird.blink=0.12; bird.blinkT=rand(2,5); } if(bird.blink>0) bird.blink-=dt;
+    bird.beak=Math.max(0,bird.beak-dt*3); bird.dizzy=Math.max(0,bird.dizzy-dt);
+    clouds.forEach(c=>{ c.x+=c.v*dt*(reduce?0.3:1); if(c.x>W+120) c.x=-120; });
+    for(let i=state.parts.length-1;i>=0;i--){ const p=state.parts[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=500*dt; if(p.life<=0) state.parts.splice(i,1); }
+    for(let i=state.floats.length-1;i>=0;i--){ const f=state.floats[i]; f.life-=dt*1.1; f.y-=60*dt; if(f.life<=0) state.floats.splice(i,1); }
+    for(let i=state.confetti.length-1;i>=0;i--){ const c=state.confetti[i]; c.y+=c.vy*dt; c.x+=(c.vx+Math.sin(bird.t*3+c.rot)*30)*dt; c.rot+=c.vr*dt; if(c.y>H+20) state.confetti.splice(i,1); }
+
+    if(state.mode!=='play'){
+      bird.vx*=0.9; bird.flap=Math.max(0,bird.flap-dt*4);
+      bird.bob=reduce?0:Math.sin(bird.t*3)*2.5;
+      return;
+    }
+    const dir=(input.left?-1:0)+(input.right?1:0)+input.pad;
+    const maxV=bird.dizzy>0?170:430;
+    if(dir){ input.target=null; bird.vx+=dir*2600*dt; }
+    else if(input.target!=null) bird.vx=clamp((input.target-bird.x)*9,-maxV,maxV);
+    else bird.vx*=Math.pow(0.0005,dt);
+    bird.vx=clamp(bird.vx,-maxV,maxV);
+    bird.x=clamp(bird.x+bird.vx*dt,92,W-92);
+    const moving=Math.abs(bird.vx)>30;
+    if(moving) bird.face=bird.vx>0?1:-1;
+    bird.flap=clamp(bird.flap+(moving?dt*6:-dt*4),0,1);
+    bird.bob=moving?Math.abs(Math.sin(bird.t*14))*-5:(reduce?0:Math.sin(bird.t*3)*2.5);
+
+    state.elapsed+=dt;
+    const prev=Math.ceil(state.time); state.time-=dt;
+    const now=Math.ceil(state.time);
+    if(now!==prev){ ui.time.textContent=Math.max(0,now); if(now<=5&&now>0) sfx.tick(); }
+    if(state.time<=0){ endRound(); return; }
+
+    state.spawnT-=dt;
+    if(state.spawnT<=0){ spawn(); state.spawnT=Math.max(0.5,1.1-state.elapsed*0.009); }
+
+    const cx=bird.x+bird.face*50, cy=GROUND-66;
+    for(let i=state.items.length-1;i>=0;i--){
+      const it=state.items[i];
+      it.y+=it.vy*dt; it.x+=Math.sin(bird.t*2+it.ph)*22*dt; it.rot+=dt*1.5;
+      const dx=it.x-cx, dy=it.y-cy, rr=it.r+28;
+      if(dx*dx+dy*dy<rr*rr){ catchItem(it); state.items.splice(i,1); continue; }
+      if(it.y>GROUND+6){ state.items.splice(i,1); burst(it.x,GROUND,it.t==='drop'?COL.drop:COL[it.t],4); if(it.t!=='drop') sfx.plop(); }
+    }
+  }
+
+  // ---------- drawing helpers ----------
+  function ellipse(x,y,rx,ry,col){ ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,6.2832); ctx.fillStyle=col; ctx.fill(); }
+  function fuzz(x,y,rx,ry,col){
+    ellipse(x,y,rx,ry,col);
+    ctx.fillStyle=col;
+    for(let i=0;i<30;i++){ const a=i/30*6.2832, j=FUZZ[i];
+      ctx.beginPath(); ctx.arc(x+Math.cos(a)*(rx-3),y+Math.sin(a)*(ry-3),4+j*4,0,6.2832); ctx.fill(); }
+  }
+  function starPath(x,y,r,ri,rot){
+    ctx.beginPath();
+    for(let i=0;i<10;i++){ const rad=i%2?ri:r, a=rot+i*Math.PI/5-Math.PI/2; ctx.lineTo(x+Math.cos(a)*rad,y+Math.sin(a)*rad); }
+    ctx.closePath();
+  }
+  function drawItem(it){
+    ctx.save(); ctx.translate(it.x,it.y);
+    if(it.t==='berry'){
+      ellipse(0,0,13,13,'#3E48A3'); ellipse(-1,-1,11.5,11.5,COL.berry); ellipse(-4,-5,4,3,'rgba(255,255,255,.45)');
+      ctx.strokeStyle='#2C3480'; ctx.lineWidth=1.5;
+      for(let i=0;i<5;i++){ const a=i/5*6.2832; ctx.beginPath(); ctx.moveTo(0,-7); ctx.lineTo(Math.cos(a)*3.5,-7+Math.sin(a)*3.5); ctx.stroke(); }
+    } else if(it.t==='straw'){
+      ctx.beginPath(); ctx.moveTo(0,15); ctx.bezierCurveTo(-16,4,-14,-10,-2,-8); ctx.bezierCurveTo(-1,-9,1,-9,2,-8); ctx.bezierCurveTo(14,-10,16,4,0,15); ctx.closePath();
+      ctx.fillStyle=COL.straw; ctx.fill();
+      ctx.fillStyle='#FFE58A'; [[-6,0],[0,4],[5,-1],[-3,7],[3,8],[0,-3]].forEach(p=>{ ctx.beginPath(); ctx.arc(p[0],p[1],1.4,0,6.2832); ctx.fill(); });
+      ctx.fillStyle='#5DAE4B'; [-1.2,-0.4,0.4,1.2].forEach(a=>{ ctx.save(); ctx.translate(0,-8); ctx.rotate(a); ellipse(0,-4,3,5.5,'#5DAE4B'); ctx.restore(); });
+    } else if(it.t==='star'){
+      ctx.rotate(Math.sin(it.rot)*0.35);
+      starPath(0,0,16,7.5,0); ctx.fillStyle=COL.star; ctx.fill(); ctx.strokeStyle='#E0A500'; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.stroke();
+      ellipse(-4,-3,3,2,'rgba(255,255,255,.7)');
+    } else {
+      ctx.beginPath(); ctx.moveTo(0,-15); ctx.bezierCurveTo(6,-4,11,1,11,6); ctx.bezierCurveTo(11,13,6,17,0,17); ctx.bezierCurveTo(-6,17,-11,13,-11,6); ctx.bezierCurveTo(-11,1,-6,-4,0,-15); ctx.closePath();
+      ctx.fillStyle=COL.drop; ctx.fill(); ellipse(-4,6,2.5,4,'rgba(255,255,255,.6)');
+    }
+    ctx.restore();
+  }
+
+  function drawBird(){
+    const x=bird.x, y=GROUND-58+bird.bob, legEnd=58-bird.bob;
+    ctx.save(); ctx.translate(x,y); ctx.scale(bird.face,1);
+    // legs & felt feet
+    ctx.strokeStyle='#E8562A'; ctx.lineWidth=5; ctx.lineCap='round';
+    const stride=bird.flap?Math.sin(bird.t*14)*10*bird.flap:0;
+    ctx.beginPath(); ctx.moveTo(-10,34); ctx.lineTo(-12+stride,legEnd); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(10,34); ctx.lineTo(12-stride,legEnd); ctx.stroke();
+    ellipse(-6+stride,legEnd,15,5.5,'#E8562A'); ellipse(16-stride,legEnd,15,5.5,'#E8562A');
+    // tail tuft
+    for(let i=-1;i<=1;i++){ ctx.save(); ctx.translate(-44,-6); ctx.rotate(0.35*i-0.2); ellipse(-14,0,17,7,'#86B4DC'); ctx.restore(); }
+    // body
+    fuzz(0,0,46,42,'#9CC4E4');
+    ellipse(-12,-16,22,13,'rgba(255,255,255,.28)');
+    // wing
+    ctx.save(); ctx.translate(-8,2); ctx.rotate(-0.3+Math.sin(bird.t*18)*0.4*bird.flap); fuzz(-6,4,24,13,'#86B4DC'); ctx.restore();
+    // beak: pivot at (28,-6), long peach felt, two layers
+    const open=bird.beak*0.55;
+    ctx.save(); ctx.translate(28,-6); ctx.rotate(open);
+    ctx.beginPath(); ctx.moveTo(0,-2); ctx.quadraticCurveTo(32,-3,58,3); ctx.quadraticCurveTo(32,14,0,9); ctx.closePath();
+    ctx.fillStyle='#F7BDA4'; ctx.fill(); ctx.strokeStyle='#DE8B6C'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.restore();
+    ctx.save(); ctx.translate(28,-6); ctx.rotate(-open*0.5);
+    ctx.beginPath(); ctx.moveTo(0,-9); ctx.quadraticCurveTo(34,-19,60,-2); ctx.quadraticCurveTo(32,3,0,4); ctx.closePath();
+    ctx.fillStyle='#F2A184'; ctx.fill(); ctx.strokeStyle='#DE8B6C'; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(6,-3); ctx.quadraticCurveTo(30,-10,52,-3); ctx.strokeStyle='rgba(222,139,108,.7)'; ctx.setLineDash([3,3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.restore();
+    // button eyes
+    const eyes=[[12,-24,9.5],[30,-19,8.5]];
+    eyes.forEach(e=>{
+      if(bird.blink>0){ ellipse(e[0],e[1],e[2],1.8,'#5F92BE'); return; }
+      ellipse(e[0],e[1],e[2],e[2],'#FFFFFF'); ctx.strokeStyle='#D3E0EA'; ctx.lineWidth=1; ctx.stroke();
+      const wob=bird.dizzy>0?Math.sin(bird.t*20)*2:0;
+      ellipse(e[0]+2.5+wob,e[1]+1,3.6,3.6,'#1E1E1E'); ellipse(e[0]+3.6+wob,e[1]-0.5,1.2,1.2,'#FFFFFF');
+    });
+    ctx.restore();
+    // dizzy stars
+    if(bird.dizzy>0){
+      for(let i=0;i<3;i++){ const a=bird.t*6+i*2.09; starPath(x+Math.cos(a)*24,GROUND-118+Math.sin(a)*7,6,3,a); ctx.fillStyle='#FFD54A'; ctx.fill(); }
+    }
+  }
+
+  function drawScene(){
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#B7DCF6'); g.addColorStop(1,'#EAF6FD');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // sun
+    ctx.save(); ctx.translate(W-72,74);
+    ctx.strokeStyle='rgba(255,215,102,.55)'; ctx.lineWidth=5; ctx.lineCap='round';
+    for(let i=0;i<12;i++){ const a=i/12*6.2832+bird.t*0.1; ctx.beginPath(); ctx.moveTo(Math.cos(a)*44,Math.sin(a)*44); ctx.lineTo(Math.cos(a)*56,Math.sin(a)*56); ctx.stroke(); }
+    ellipse(0,0,36,36,'#FFD766'); ellipse(-8,-8,12,8,'rgba(255,255,255,.4)'); ctx.restore();
+    // clouds
+    clouds.forEach(c=>{ ctx.save(); ctx.translate(c.x,c.y); ctx.scale(c.s,c.s);
+      ellipse(0,0,46,22,'#FFFFFF'); ellipse(-28,6,26,16,'#FFFFFF'); ellipse(30,6,30,18,'#FFFFFF'); ellipse(-2,-14,28,20,'#FFFFFF'); ctx.restore(); });
+    // hills
+    ellipse(90,GROUND+30,220,70,'#A9D98C'); ellipse(420,GROUND+40,240,80,'#9DD37F');
+    // grass
+    ctx.fillStyle='#8FCB6E'; ctx.fillRect(0,GROUND,W,H-GROUND);
+    ctx.fillStyle='#7BBC5A'; ctx.fillRect(0,GROUND,W,8);
+    ctx.strokeStyle='#6FAF4F'; ctx.lineWidth=3; ctx.lineCap='round';
+    for(let i=0;i<24;i++){ const gx=(i*53+17)%W, sway=Math.sin(bird.t*2+i)*2; ctx.beginPath(); ctx.moveTo(gx,GROUND+4); ctx.lineTo(gx+sway,GROUND-10); ctx.moveTo(gx+6,GROUND+4); ctx.lineTo(gx+8+sway,GROUND-7); ctx.stroke(); }
+    // things
+    state.items.forEach(drawItem);
+    drawBird();
+    state.parts.forEach(p=>{ ctx.globalAlpha=clamp(p.life*2,0,1); ellipse(p.x,p.y,p.r,p.r,p.col); }); ctx.globalAlpha=1;
+    ctx.font="700 30px Fredoka, Nunito, sans-serif"; ctx.textAlign='center';
+    state.floats.forEach(f=>{ ctx.globalAlpha=clamp(f.life,0,1); ctx.lineWidth=5; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.strokeText(f.text,f.x,f.y); ctx.fillStyle=f.col; ctx.fillText(f.text,f.x,f.y); }); ctx.globalAlpha=1;
+    state.confetti.forEach(c=>{ ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(c.rot); ctx.fillStyle=c.col; ctx.fillRect(-c.w/2,-c.h/2,c.w,c.h); ctx.restore(); });
+  }
+
+  let last=performance.now();
+  function frame(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; update(dt); drawScene(); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+})();
+</script>
