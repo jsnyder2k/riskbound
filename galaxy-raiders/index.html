@@ -35,25 +35,33 @@
   }
   #bar button:hover{border-color:var(--glow)}
   #bar button:focus-visible{outline:2px solid var(--yellow); outline-offset:2px}
-  #pad{display:none; gap:10px; width:min(100vw - 24px, 480px)}
+  #pad{display:none; justify-content:space-between; align-items:stretch; gap:16px; width:min(100vw - 24px, 480px)}
+  #pad.fire-left{flex-direction:row-reverse}
+  #pad .arrows{display:flex; gap:8px}
   #pad button{
-    flex:1; padding:20px 0; font:inherit; font-size:12px; color:var(--text); background:var(--cab);
+    padding:20px 0; font:inherit; font-size:12px; color:var(--text); background:var(--cab);
     border:2px solid var(--edge); border-radius:6px; touch-action:none; -webkit-tap-highlight-color:transparent;
   }
+  #pad .arrows button{width:68px}
+  #pad button.fire{width:104px; border-color:var(--red); color:var(--red)}
   #pad button:active{background:var(--edge)}
-  #pad button.fire{border-color:var(--red); color:var(--red)}
+  #hand{display:none}
   body.touch #pad{display:flex}
   body.touch #hint{display:none}
+  body.touch #hand{display:inline-block}
 </style>
 
 <div id="cab"><canvas id="g" width="224" height="288" aria-label="Galaxy Raiders playfield"></canvas></div>
-<div id="pad">
-  <button data-k="left" aria-label="Move left">&lt;</button>
+<div id="pad" class="fire-right">
+  <div class="arrows">
+    <button data-k="left" aria-label="Move left">&lt;</button>
+    <button data-k="right" aria-label="Move right">&gt;</button>
+  </div>
   <button data-k="fire" class="fire" aria-label="Fire">FIRE</button>
-  <button data-k="right" aria-label="Move right">&gt;</button>
 </div>
 <div id="bar">
   <span id="hint">Arrows or A/D move &nbsp;·&nbsp; Space fire &nbsp;·&nbsp; P pause</span>
+  <button id="hand" type="button">Fire: right</button>
   <button id="snd" type="button">Sound on</button>
 </div>
 
@@ -171,6 +179,20 @@ const SFX = {
 const sndBtn = document.getElementById('snd');
 function toggleMute(){ muted = !muted; sndBtn.textContent = muted ? 'Sound off' : 'Sound on'; }
 sndBtn.addEventListener('click', () => { ac(); toggleMute(); sndBtn.blur(); });
+
+/* fire-button side: arrows on one side, fire on the other, swappable for left- or right-handed play */
+const HAND_KEY = 'galaxyRaidersFireSide';
+const pad = document.getElementById('pad'), handBtn = document.getElementById('hand');
+function setFireSide(side){
+  pad.classList.toggle('fire-left', side === 'left');
+  pad.classList.toggle('fire-right', side !== 'left');
+  handBtn.textContent = 'Fire: ' + (side === 'left' ? 'left' : 'right');
+  try { localStorage.setItem(HAND_KEY, side); } catch (e) {}
+}
+let fireSide = 'right';
+try { fireSide = localStorage.getItem(HAND_KEY) || 'right'; } catch (e) {}
+setFireSide(fireSide);
+handBtn.addEventListener('click', () => { fireSide = fireSide === 'left' ? 'right' : 'left'; setFireSide(fireSide); handBtn.blur(); });
 
 /* ---------- paths (cubic beziers with approximate arc length) ---------- */
 const pt = (x, y) => ({ x, y });
