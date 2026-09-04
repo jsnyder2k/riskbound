@@ -109,7 +109,9 @@
   .run.finished .ctrls{grid-template-columns:1fr}
   .run .status{flex:none;text-align:center;font-size:12px;letter-spacing:.06em;opacity:.65;margin-top:10px;min-height:1em}
   .run .status.warn{opacity:.95;font-weight:600}
-  #ns{position:fixed;left:2px;bottom:2px;width:8px;height:8px;opacity:.35;pointer-events:none;border-radius:2px}
+  #ns{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.04;pointer-events:none}
+  .run .bar,.run .meta,.run .mid,.run .ctrls,.run .status{position:relative}
+  .run.test{--phase:#2F4A66}
   @media (prefers-reduced-motion:reduce){.run{transition:none}.run .clock.last{animation:none}.sw,.sw::after{transition:none}}
 </style>
 
@@ -157,8 +159,10 @@
       <div class="opt"><div>Bell and countdown beeps<small>Beeps at 3, 2, 1. Bell on every change.</small></div><button class="sw" role="switch" data-k="sound" aria-checked="true" aria-label="Sounds"></button></div>
       <div class="opt"><div>Announce exercise names<small>Speaks the name at the start of each work interval.</small></div><button class="sw" role="switch" data-k="speak" aria-checked="true" aria-label="Announce"></button></div>
       <div class="opt"><div>Vibrate on changes<small>Phones only.</small></div><button class="sw" role="switch" data-k="vibrate" aria-checked="true" aria-label="Vibrate"></button></div>
-      <div class="opt"><div>Keep screen on while running<small>Asks the phone not to sleep. Falls back to a tiny looping video if the phone refuses.</small></div><button class="sw" role="switch" data-k="keepOn" aria-checked="true" aria-label="Keep screen on"></button></div>
+      <div class="opt"><div>Keep screen on while running<small>Asks the phone not to sleep and plays a silent looping video, the way older apps did.</small></div><button class="sw" role="switch" data-k="keepOn" aria-checked="true" aria-label="Keep screen on"></button></div>
+      <div class="opt"><div>Full screen while running<small>Hides the browser bars. Swipe back to leave.</small></div><button class="sw" role="switch" data-k="fullscreen" aria-checked="true" aria-label="Full screen"></button></div>
     </div>
+    <div class="rowbtns"><button class="btn" id="testScreen">Test screen for 2 minutes</button></div>
     <p class="statusline" id="screenStatus"></p>
   </section>
 
@@ -175,6 +179,7 @@
 <div class="startbar" id="startbar"><div class="inner"><button class="start" id="startBtn">&#9654;&nbsp; Start</button></div></div>
 
 <div class="run" id="run" aria-live="off">
+  <video id="ns" loop muted playsinline aria-hidden="true" hidden src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwEAAAAAAAIlEU2bdLlNu4tTq4QVSalmU6yBbk27i1OrhBZUrmtTrIGTTbuLU6uEH0O2dVOsgcFNu4xTq4QcU7trU6yCAhPsrgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBEiYRE+hiDTYCGQ2hyb21lV0GGQ2hyb21lFlSua6mup9eBAXPFh4CH2vAruGaDgQFV7oEBhoVWX1ZQOOCKsIEQuoEQU8CBAR9DtnUBAAAAAAABRueBAKDVoaqBAAAAMAIAnQEqEAAQAAAHCIWFiJmEiAEkEBOno3hA/v+E+8m7DtyfojB1oaampO6BAaWfEAIAnQEqEAAQAAGHCIWFiJmEiAgCAAwNYAD+/k3gAKC/oZ+BAfQAsQEAABAUABgAMD/0DAAAAP7/Rj+Tdh25P0RgdaGYppbugQGlkbEBAAYQXAAYABhYL/QACAAA+4EAoLehloED6ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhBUABgAGFgv9AAIAAD7ggH0oLehloEF3ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhBMABgAGFgv9AAIAAD7ggPooLehloEH0ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhA0ABgAGFgv9AAIAAD7ggXcHFO7a427i7OBALeG94EB8YHB"></video>
   <div class="bar"><i id="bar"></i></div>
   <div class="meta"><span id="mCycle">Cycle 1 / 9</span><span id="mSet">Set 1 / 1</span><span id="mLeft">06:45 left</span></div>
   <div class="mid">
@@ -189,7 +194,6 @@
     <button id="bSkip">Skip</button>
   </div>
   <div class="status" id="rStatus"></div>
-  <video id="ns" loop muted playsinline aria-hidden="true" hidden src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwEAAAAAAAIlEU2bdLlNu4tTq4QVSalmU6yBbk27i1OrhBZUrmtTrIGTTbuLU6uEH0O2dVOsgcFNu4xTq4QcU7trU6yCAhPsrgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBEiYRE+hiDTYCGQ2hyb21lV0GGQ2hyb21lFlSua6mup9eBAXPFh4CH2vAruGaDgQFV7oEBhoVWX1ZQOOCKsIEQuoEQU8CBAR9DtnUBAAAAAAABRueBAKDVoaqBAAAAMAIAnQEqEAAQAAAHCIWFiJmEiAEkEBOno3hA/v+E+8m7DtyfojB1oaampO6BAaWfEAIAnQEqEAAQAAGHCIWFiJmEiAgCAAwNYAD+/k3gAKC/oZ+BAfQAsQEAABAUABgAMD/0DAAAAP7/Rj+Tdh25P0RgdaGYppbugQGlkbEBAAYQXAAYABhYL/QACAAA+4EAoLehloED6ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhBUABgAGFgv9AAIAAD7ggH0oLehloEF3ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhBMABgAGFgv9AAIAAD7ggPooLehloEH0ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhA0ABgAGFgv9AAIAAD7ggXcHFO7a427i7OBALeG94EB8YHB"></video>
 </div>
 
 <script>
@@ -197,11 +201,11 @@
   'use strict';
   const $=id=>document.getElementById(id);
   const KEY='roundbell.v1', SAVED='roundbell.saved.v1';
-  const PHASE={prepare:'var(--prepare)',work:'var(--work)',rest:'var(--rest)',setrest:'var(--setrest)',cooldown:'var(--cooldown)'};
-  const LABEL={prepare:'Get ready',work:'Work',rest:'Rest',setrest:'Rest between sets',cooldown:'Cool down'};
+  const PHASE={prepare:'var(--prepare)',work:'var(--work)',rest:'var(--rest)',setrest:'var(--setrest)',cooldown:'var(--cooldown)',test:'#2F4A66'};
+  const LABEL={prepare:'Get ready',work:'Work',rest:'Rest',setrest:'Rest between sets',cooldown:'Cool down',test:'Screen test'};
 
   const STARTER=['Wall sit','Walkout plank','Squats','Push-ups','Mountain climbers','Reverse lunges','Plank hold','Jumping jacks','Burpees'];
-  const DEFAULT={prepare:15,work:30,rest:15,sets:1,setRest:0,cooldown:0,sound:true,speak:true,vibrate:true,keepOn:true,
+  const DEFAULT={prepare:15,work:30,rest:15,sets:1,setRest:0,cooldown:0,sound:true,speak:true,vibrate:true,keepOn:true,fullscreen:true,
     library:STARTER.slice(),exercises:STARTER.slice()};
 
   const same=(a,b)=>a.trim().toLowerCase()===b.trim().toLowerCase();
@@ -347,6 +351,7 @@
     const k=b.dataset.k; cfg[k]=!cfg[k]; b.setAttribute('aria-checked',String(cfg[k])); persist();
     if(k==='sound'&&cfg.sound){ensureAudio();bell(0,1);}
     if(k==='keepOn') renderScreenStatus();
+    if(k==='fullscreen'&&document.fullscreenElement) leaveFullscreen();
   }));
   $('testBell').addEventListener('click',()=>{ensureAudio();beep(0);beep(1);beep(2);bell(3,1);});
   $('saveBtn').addEventListener('click',()=>{
@@ -389,42 +394,60 @@
   function buzz(p){ if(cfg.vibrate&&navigator.vibrate){ try{navigator.vibrate(p);}catch(e){} } }
 
   /* ---------- keep the screen on ---------- */
-  // Primary: the Screen Wake Lock API. Fallback: a tiny looping video, which phones treat like a playing player.
-  let lock=null, wakeMode='', wakeErr='';
+  // Two requests at once: the Screen Wake Lock API, and a silent looping video filling the screen,
+  // which phones treat like a playing video player. Whichever the phone honours wins.
+  let lock=null, wakeErr='', videoOn=false, offEvents=[];
   const ns=$('ns');
-  function renderScreenStatus(){
+  function diag(){
+    const ua=navigator.userAgent; let b='unknown browser';
+    const m=ua.match(/(SamsungBrowser|EdgA|CriOS|Firefox|Chrome|Safari)\/(\d+)/); if(m) b=m[1]+' '+m[2];
+    const inApp=/; wv\)/.test(ua)?'in-app browser':'browser';
+    const framed=window.top!==window?'embedded':'top-level';
+    let allowed='n/a'; try{ if(document.featurePolicy) allowed=document.featurePolicy.allowsFeature('screen-wake-lock')?'allowed':'blocked'; }catch(e){}
+    return b+' · '+inApp+' · '+framed+' · wake lock API '+(('wakeLock' in navigator)?'present, '+allowed:'missing');
+  }
+  function renderScreenStatus(text){
     const el=$('screenStatus');
-    if(!cfg.keepOn){ el.textContent='Screen will follow the phone’s normal timeout.'; return; }
-    el.textContent=('wakeLock' in navigator)?'This browser supports screen wake lock. Status shows on the timer screen.':'This browser has no wake lock. The video fallback will be used.';
+    if(text){ el.textContent=text; return; }
+    el.textContent=cfg.keepOn?diag():'Screen will follow the phone’s normal timeout.';
   }
   function setRunStatus(text,warn){ const el=$('rStatus'); el.textContent=text; el.classList.toggle('warn',!!warn); }
+  function wakeSummary(){
+    const parts=[];
+    if(lock) parts.push('wake lock granted'); else if(wakeErr) parts.push('wake lock '+wakeErr);
+    if(videoOn) parts.push('video playing'); else parts.push('video blocked');
+    return parts.join(' · ');
+  }
   async function keepAwake(){
     if(!cfg.keepOn){ setRunStatus('Screen may sleep (keep screen on is off)'); return; }
-    let ok=false;
     if('wakeLock' in navigator){
-      try{
-        if(!lock){ lock=await navigator.wakeLock.request('screen'); lock.addEventListener('release',()=>{ lock=null; }); }
-        ok=true; wakeMode='lock';
-      }catch(e){ wakeErr=(e&&e.name)||'error'; }
+      try{ if(!lock){ lock=await navigator.wakeLock.request('screen'); lock.addEventListener('release',()=>{ lock=null; }); } wakeErr=''; }
+      catch(e){ wakeErr=(e&&e.name)||'error'; }
     } else wakeErr='unsupported';
-    if(ok){ stopVideo(); setRunStatus('Screen stays on · wake lock'); return; }
-    const played=await startVideo();
-    if(played){ wakeMode='video'; setRunStatus('Screen stays on · video fallback (wake lock '+wakeErr+')'); }
-    else { wakeMode=''; setRunStatus('Could not keep the screen on ('+wakeErr+'). Try opening this page directly in Chrome.',true); }
+    videoOn=await startVideo();
+    const ok=!!lock||videoOn;
+    setRunStatus((ok?'Keeping screen on · ':'Could not keep screen on · ')+wakeSummary()+(offEvents.length?' · screen went off ×'+offEvents.length:''),!ok);
   }
-  function releaseAwake(){ if(lock){ lock.release().catch(()=>{}); lock=null; } stopVideo(); wakeMode=''; }
+  function releaseAwake(){ if(lock){ lock.release().catch(()=>{}); lock=null; } stopVideo(); }
   async function startVideo(){ try{ ns.hidden=false; await ns.play(); return true; }catch(e){ ns.hidden=true; return false; } }
-  function stopVideo(){ try{ ns.pause(); }catch(e){} ns.hidden=true; }
-  ns.addEventListener('ended',()=>{ if(wakeMode==='video'){ ns.currentTime=0; ns.play().catch(()=>{}); } });
-  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&R.active&&!R.paused&&!R.finished) keepAwake(); });
+  function stopVideo(){ try{ ns.pause(); }catch(e){} ns.hidden=true; videoOn=false; }
+  document.addEventListener('visibilitychange',()=>{
+    if(!R.active||R.finished) return;
+    if(document.visibilityState==='hidden'){ offEvents.push(Date.now()); }
+    else if(!R.paused) keepAwake();
+  });
+  function goFullscreen(){ if(!cfg.fullscreen) return; try{ const el=document.documentElement; const p=(el.requestFullscreen||el.webkitRequestFullscreen).call(el,{navigationUI:'hide'}); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
+  function leaveFullscreen(){ try{ if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); }catch(e){} }
 
   /* ---------- runner ---------- */
-  const R={active:false,paused:false,sched:[],idx:0,endAt:0,leftMs:0,shownSec:null,timer:null,finished:false};
+  const R={active:false,paused:false,sched:[],idx:0,endAt:0,leftMs:0,shownSec:null,timer:null,finished:false,test:false};
   const run=$('run');
 
-  function start(){
-    ensureAudio(); keepAwake();
-    R.sched=buildSchedule(cfg); if(!R.sched.length) return;
+  function start(mode){
+    R.test=(mode==='test');
+    goFullscreen(); ensureAudio(); offEvents=[]; keepAwake();
+    R.sched=R.test?[{type:'test',secs:120,name:'Leave the phone alone',next:'',set:1,cycle:1}]:buildSchedule(cfg); if(!R.sched.length) return;
+    run.classList.toggle('test',R.test);
     R.active=true; R.paused=false; R.finished=false; R.idx=-1;
     run.classList.add('on'); run.classList.remove('paused','finished'); document.body.style.overflow='hidden';
     $('bPause').textContent='Pause'; $('bEnd').textContent='End'; $('bSkip').textContent='Skip';
@@ -433,7 +456,9 @@
     R.timer=setInterval(tick,50);
   }
   function stop(){
-    R.active=false; clearInterval(R.timer); releaseAwake();
+    const summary=wakeSummary();
+    R.active=false; clearInterval(R.timer); releaseAwake(); leaveFullscreen();
+    if(R.test) renderScreenStatus((offEvents.length?'Screen went off '+offEvents.length+' time(s) during the test. ':'Screen stayed on for the whole test. ')+summary+' · '+diag());
     try{speechSynthesis.cancel();}catch(e){}
     run.classList.remove('on','paused','finished'); document.body.style.overflow=''; $('startbar').style.display='';
   }
@@ -446,8 +471,9 @@
     $('rPhase').textContent=LABEL[it.type];
     if(it.type==='work'){ $('rName').textContent=it.name; $('rNext').innerHTML=it.next?'Next: <b></b>':'Last one'; if(it.next) $('rNext').querySelector('b').textContent=it.next; }
     else { $('rName').textContent=it.type==='prepare'?'':' '; if(it.type==='prepare') $('rName').textContent='First up'; $('rNext').innerHTML=it.next?'<b></b>':(it.type==='cooldown'?'Nice work':''); if(it.next) $('rNext').querySelector('b').textContent=it.next; }
-    $('mCycle').textContent='Cycle '+it.cycle+' / '+Math.max(1,cfg.exercises.length);
-    $('mSet').textContent='Set '+it.set+' / '+cfg.sets;
+    $('mCycle').textContent=R.test?'Screen test':'Cycle '+it.cycle+' / '+Math.max(1,cfg.exercises.length);
+    $('mSet').textContent=R.test?'':'Set '+it.set+' / '+cfg.sets;
+    if(R.test){ $('rName').textContent=it.name; $('rNext').textContent='If this is still lit after 90 seconds, the phone honoured the request.'; tick(); return; }
     if(!first){
       if(it.type==='work'){ bell(0,1); buzz([250]); say(it.name,350); }
       else if(it.type==='rest'||it.type==='setrest'){ bell(0,2,880); buzz([120,80,120]); if(it.next) say('Rest. Next, '+it.next,700); }
@@ -461,9 +487,11 @@
   function finish(){
     R.finished=true; clearInterval(R.timer); releaseAwake();
     run.classList.add('finished'); run.style.setProperty('--phase','var(--done)');
-    $('rPhase').textContent='Done'; $('rName').textContent='Workout complete'; $('rClock').textContent='✓'; $('rNext').textContent=fmt(R.sched.reduce((a,x)=>a+x.secs,0))+' of work in the books';
+    $('rPhase').textContent='Done'; $('rName').textContent=R.test?'Test finished':'Workout complete'; $('rClock').textContent='✓';
+    $('rNext').textContent=R.test?(offEvents.length?'The screen went off '+offEvents.length+' time(s).':'The screen stayed on.'):fmt(R.sched.reduce((a,x)=>a+x.secs,0))+' of work in the books';
+    setRunStatus(wakeSummary()+' · '+diag());
     $('mLeft').textContent='00:00 left'; $('bar').style.width='100%';
-    bell(0,3); buzz([300,120,300,120,300]); say('Workout complete',900);
+    if(!R.test){ bell(0,3); buzz([300,120,300,120,300]); say('Workout complete',900); } else bell(0,1);
     $('bEnd').textContent='Close';
   }
   function tick(){
@@ -485,7 +513,8 @@
     if(!R.paused){ R.paused=true; R.leftMs=R.endAt-Date.now(); run.classList.add('paused'); $('bPause').textContent='Resume'; $('rPhase').textContent='Paused'; releaseAwake(); }
     else { R.paused=false; R.endAt=Date.now()+R.leftMs; run.classList.remove('paused'); $('bPause').textContent='Pause'; $('rPhase').textContent=LABEL[R.sched[R.idx].type]; R.shownSec=null; ensureAudio(); keepAwake(); tick(); }
   }
-  $('startBtn').addEventListener('click',start);
+  $('startBtn').addEventListener('click',()=>start());
+  $('testScreen').addEventListener('click',()=>start('test'));
   $('bPause').addEventListener('click',togglePause);
   $('bSkip').addEventListener('click',()=>{ if(!R.active||R.finished) return; if(R.paused) togglePause(); advance(false); });
   $('bEnd').addEventListener('click',()=>{ if(R.finished){stop();return;} if(!R.paused) togglePause(); if(confirm('End this workout?')) stop(); });
