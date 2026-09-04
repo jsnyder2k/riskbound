@@ -75,6 +75,11 @@
   .chip .x{padding:0 10px;color:var(--muted);border-left:1px solid var(--line);font-size:16px}
   .chip .load:active,.chip .x:active{background:var(--raised)}
   .empty{font-size:13px;color:var(--faint);margin:8px 0 0}
+  .chip.inround{border-color:var(--rest)}
+  .chip.inround .load::before{content:"\2713\00a0";color:var(--rest)}
+  .rowbtns{display:flex;gap:6px;margin-top:8px}
+  .rowbtns .btn{flex:1;height:40px;font-size:13px;color:var(--muted)}
+  .statusline{font-size:13px;color:var(--faint);margin:6px 0 0}
 
   /* start bar */
   .startbar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--bg) 70%,transparent)}
@@ -102,6 +107,9 @@
   .run.paused{--phase:#2C3441}
   .run.paused .clock{opacity:.55}
   .run.finished .ctrls{grid-template-columns:1fr}
+  .run .status{flex:none;text-align:center;font-size:12px;letter-spacing:.06em;opacity:.65;margin-top:10px;min-height:1em}
+  .run .status.warn{opacity:.95;font-weight:600}
+  #ns{position:fixed;left:2px;bottom:2px;width:8px;height:8px;opacity:.35;pointer-events:none;border-radius:2px}
   @media (prefers-reduced-motion:reduce){.run{transition:none}.run .clock.last{animation:none}.sw,.sw::after{transition:none}}
 </style>
 
@@ -112,13 +120,23 @@
   </header>
 
   <section>
-    <h2>Exercises in the round <b id="cycleNote">one per cycle</b></h2>
+    <h2>Today's round <b id="cycleNote">one per cycle</b></h2>
     <div class="exlist" id="exlist"></div>
+    <div class="rowbtns">
+      <button class="btn" id="resetRound">Reset to full library</button>
+      <button class="btn" id="clearRound">Clear round</button>
+    </div>
+    <p class="hint">Remove what you are not doing today. The full library comes back next time you open the app.</p>
+  </section>
+
+  <section>
+    <h2>Exercise library <b>tap to add to the round</b></h2>
     <div class="addrow">
-      <input id="addInput" type="text" placeholder="Next exercise, then Enter" autocomplete="off" autocapitalize="sentences" enterkeyhint="next">
+      <input id="addInput" type="text" placeholder="New exercise, then Enter" autocomplete="off" autocapitalize="sentences" enterkeyhint="next">
       <button class="btn" id="addBtn">Add</button>
     </div>
-    <p class="hint">Each set runs these in order. Leave a name blank and it shows as Work.</p>
+    <div class="chips" id="libchips"></div>
+    <p class="hint">Every name you add is kept here. The &times; on a chip deletes it for good.</p>
   </section>
 
   <section>
@@ -139,7 +157,9 @@
       <div class="opt"><div>Bell and countdown beeps<small>Beeps at 3, 2, 1. Bell on every change.</small></div><button class="sw" role="switch" data-k="sound" aria-checked="true" aria-label="Sounds"></button></div>
       <div class="opt"><div>Announce exercise names<small>Speaks the name at the start of each work interval.</small></div><button class="sw" role="switch" data-k="speak" aria-checked="true" aria-label="Announce"></button></div>
       <div class="opt"><div>Vibrate on changes<small>Phones only.</small></div><button class="sw" role="switch" data-k="vibrate" aria-checked="true" aria-label="Vibrate"></button></div>
+      <div class="opt"><div>Keep screen on while running<small>Asks the phone not to sleep. Falls back to a tiny looping video if the phone refuses.</small></div><button class="sw" role="switch" data-k="keepOn" aria-checked="true" aria-label="Keep screen on"></button></div>
     </div>
+    <p class="statusline" id="screenStatus"></p>
   </section>
 
   <section>
@@ -168,6 +188,8 @@
     <button id="bPause">Pause</button>
     <button id="bSkip">Skip</button>
   </div>
+  <div class="status" id="rStatus"></div>
+  <video id="ns" loop muted playsinline aria-hidden="true" hidden src="data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQRChYECGFOAZwEAAAAAAAIlEU2bdLlNu4tTq4QVSalmU6yBbk27i1OrhBZUrmtTrIGTTbuLU6uEH0O2dVOsgcFNu4xTq4QcU7trU6yCAhPsrgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmoCrXsYMPQkBEiYRE+hiDTYCGQ2hyb21lV0GGQ2hyb21lFlSua6mup9eBAXPFh4CH2vAruGaDgQFV7oEBhoVWX1ZQOOCKsIEQuoEQU8CBAR9DtnUBAAAAAAABRueBAKDVoaqBAAAAMAIAnQEqEAAQAAAHCIWFiJmEiAEkEBOno3hA/v+E+8m7DtyfojB1oaampO6BAaWfEAIAnQEqEAAQAAGHCIWFiJmEiAgCAAwNYAD+/k3gAKC/oZ+BAfQAsQEAABAUABgAMD/0DAAAAP7/Rj+Tdh25P0RgdaGYppbugQGlkbEBAAYQXAAYABhYL/QACAAA+4EAoLehloED6ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhBUABgAGFgv9AAIAAD7ggH0oLehloEF3ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhBMABgAGFgv9AAIAAD7ggPooLehloEH0ADRAQAAEAkgAMAAwsF/oABAAAB1oZimlu6BAaWRsQEABhA0ABgAGFgv9AAIAAD7ggXcHFO7a427i7OBALeG94EB8YHB"></video>
 </div>
 
 <script>
@@ -178,11 +200,29 @@
   const PHASE={prepare:'var(--prepare)',work:'var(--work)',rest:'var(--rest)',setrest:'var(--setrest)',cooldown:'var(--cooldown)'};
   const LABEL={prepare:'Get ready',work:'Work',rest:'Rest',setrest:'Rest between sets',cooldown:'Cool down'};
 
-  const DEFAULT={prepare:15,work:30,rest:15,sets:1,setRest:0,cooldown:0,sound:true,speak:true,vibrate:true,
-    exercises:['Wall sit','Walkout plank','Squats','Push-ups','Mountain climbers','Reverse lunges','Plank hold','Jumping jacks','Burpees']};
+  const STARTER=['Wall sit','Walkout plank','Squats','Push-ups','Mountain climbers','Reverse lunges','Plank hold','Jumping jacks','Burpees'];
+  const DEFAULT={prepare:15,work:30,rest:15,sets:1,setRest:0,cooldown:0,sound:true,speak:true,vibrate:true,keepOn:true,
+    library:STARTER.slice(),exercises:STARTER.slice()};
+
+  const same=(a,b)=>a.trim().toLowerCase()===b.trim().toLowerCase();
+  const inLib=(name)=>cfg.library.some(x=>same(x,name));
 
   let cfg=load();
-  function load(){ try{const s=JSON.parse(localStorage.getItem(KEY)); if(s&&Array.isArray(s.exercises)) return Object.assign({},DEFAULT,s);}catch(e){} return JSON.parse(JSON.stringify(DEFAULT)); }
+  function load(){
+    let s=null; try{ s=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
+    if(!s||typeof s!=='object') return JSON.parse(JSON.stringify(DEFAULT));
+    const c=Object.assign({},DEFAULT,s);
+    if(!Array.isArray(s.library)){
+      // first run after the library was added: keep the starter list plus anything the user had typed
+      const lib=STARTER.slice();
+      (Array.isArray(s.exercises)?s.exercises:[]).forEach(n=>{ if(n.trim()&&!lib.some(x=>same(x,n))) lib.push(n.trim()); });
+      c.library=lib;
+    }
+    c.library=c.library.map(x=>String(x).trim()).filter(Boolean);
+    // the round always regenerates from the full library when the app opens
+    c.exercises=c.library.slice();
+    return c;
+  }
   function persist(){ try{localStorage.setItem(KEY,JSON.stringify(cfg));}catch(e){} }
   function loadSaved(){ try{const s=JSON.parse(localStorage.getItem(SAVED)); if(Array.isArray(s)) return s;}catch(e){} return []; }
   function persistSaved(list){ try{localStorage.setItem(SAVED,JSON.stringify(list));}catch(e){} }
@@ -216,12 +256,42 @@
       row.innerHTML='<span class="n">'+(i+1)+'</span><input type="text" placeholder="Work" autocomplete="off" autocapitalize="sentences"><button class="del" aria-label="Remove">&times;</button>';
       const inp=row.querySelector('input'); inp.value=name;
       inp.addEventListener('input',()=>{cfg.exercises[i]=inp.value;persist();});
+      inp.addEventListener('change',()=>{
+        // renaming in the round renames the library entry too, so the fix sticks
+        const nv=inp.value.trim(); const li=cfg.library.findIndex(x=>same(x,name));
+        if(nv&&li>=0&&!inLib(nv)) cfg.library[li]=nv; else if(nv&&li<0&&!inLib(nv)) cfg.library.push(nv);
+        persist(); renderList(); renderLibrary();
+      });
       inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault(); const nx=box.querySelectorAll('input')[i+1]; (nx||$('addInput')).focus();} });
-      row.querySelector('.del').addEventListener('click',()=>{cfg.exercises.splice(i,1);persist();renderList();renderSummary();});
+      row.querySelector('.del').addEventListener('click',()=>{cfg.exercises.splice(i,1);persist();renderList();renderLibrary();renderSummary();});
       box.appendChild(row);
     });
+    if(!cfg.exercises.length) box.innerHTML='<p class="empty">Round is empty. Tap exercises in the library below to build it.</p>';
     $('cycleNote').textContent=cfg.exercises.length+(cfg.exercises.length===1?' cycle':' cycles');
   }
+  function renderLibrary(){
+    const box=$('libchips'); box.innerHTML='';
+    if(!cfg.library.length){ box.innerHTML='<p class="empty">Library is empty. Add an exercise above.</p>'; return; }
+    cfg.library.forEach((name,i)=>{
+      const c=document.createElement('div'); c.className='chip';
+      const used=cfg.exercises.some(x=>same(x,name)); if(used) c.classList.add('inround');
+      c.innerHTML='<button class="load"></button><button class="x" aria-label="Delete from library">&times;</button>';
+      c.querySelector('.load').textContent=name;
+      c.querySelector('.load').addEventListener('click',()=>{
+        if(used){ const k=cfg.exercises.findIndex(x=>same(x,name)); if(k>=0) cfg.exercises.splice(k,1); }
+        else cfg.exercises.push(name);
+        persist(); renderList(); renderLibrary(); renderSummary();
+      });
+      c.querySelector('.x').addEventListener('click',()=>{
+        if(!confirm('Delete "'+name+'" from the library?')) return;
+        cfg.library.splice(i,1); cfg.exercises=cfg.exercises.filter(x=>!same(x,name));
+        persist(); renderList(); renderLibrary(); renderSummary();
+      });
+      box.appendChild(c);
+    });
+  }
+  $('resetRound').addEventListener('click',()=>{ cfg.exercises=cfg.library.slice(); persist(); renderList(); renderLibrary(); renderSummary(); });
+  $('clearRound').addEventListener('click',()=>{ cfg.exercises=[]; persist(); renderList(); renderLibrary(); renderSummary(); });
   function renderFields(){
     ['prepare','work','rest','sets','setRest','cooldown'].forEach(k=>{$('f_'+k).value=cfg[k];});
     document.querySelectorAll('.sw').forEach(b=>b.setAttribute('aria-checked',String(!!cfg[b.dataset.k])));
@@ -238,17 +308,24 @@
       const c=document.createElement('div'); c.className='chip';
       c.innerHTML='<button class="load"></button><button class="x" aria-label="Delete">&times;</button>';
       c.querySelector('.load').textContent=w.name;
-      c.querySelector('.load').addEventListener('click',()=>{cfg=Object.assign({},DEFAULT,w.cfg);persist();renderAll();$('saveName').value=w.name;});
+      c.querySelector('.load').addEventListener('click',()=>{
+        const lib=cfg.library; cfg=Object.assign({},DEFAULT,w.cfg); cfg.library=lib;
+        (cfg.exercises||[]).forEach(n=>{ if(n.trim()&&!inLib(n)) cfg.library.push(n.trim()); });
+        persist(); renderAll(); $('saveName').value=w.name;
+      });
       c.querySelector('.x').addEventListener('click',()=>{ if(confirm('Delete "'+w.name+'"?')){list.splice(i,1);persistSaved(list);renderChips();} });
       box.appendChild(c);
     });
   }
-  function renderAll(){renderList();renderFields();renderSummary();renderChips();}
+  function renderAll(){renderList();renderLibrary();renderFields();renderSummary();renderChips();renderScreenStatus();}
 
   function addExercise(){
     const v=$('addInput').value.trim(); if(!v) return;
-    v.split(/\n|,/).map(x=>x.trim()).filter(Boolean).forEach(x=>cfg.exercises.push(x));
-    $('addInput').value=''; persist(); renderList(); renderSummary(); $('addInput').focus();
+    v.split(/\n|,/).map(x=>x.trim()).filter(Boolean).forEach(x=>{
+      if(!inLib(x)) cfg.library.push(x);
+      if(!cfg.exercises.some(e=>same(e,x))) cfg.exercises.push(x);
+    });
+    $('addInput').value=''; persist(); renderList(); renderLibrary(); renderSummary(); $('addInput').focus();
   }
   $('addBtn').addEventListener('click',addExercise);
   $('addInput').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();addExercise();} });
@@ -269,6 +346,7 @@
   document.querySelectorAll('.sw').forEach(b=>b.addEventListener('click',()=>{
     const k=b.dataset.k; cfg[k]=!cfg[k]; b.setAttribute('aria-checked',String(cfg[k])); persist();
     if(k==='sound'&&cfg.sound){ensureAudio();bell(0,1);}
+    if(k==='keepOn') renderScreenStatus();
   }));
   $('testBell').addEventListener('click',()=>{ensureAudio();beep(0);beep(1);beep(2);bell(3,1);});
   $('saveBtn').addEventListener('click',()=>{
@@ -310,11 +388,35 @@
   }
   function buzz(p){ if(cfg.vibrate&&navigator.vibrate){ try{navigator.vibrate(p);}catch(e){} } }
 
-  /* ---------- wake lock ---------- */
-  let lock=null;
-  async function keepAwake(){ try{ if('wakeLock'in navigator&&!lock){ lock=await navigator.wakeLock.request('screen'); lock.addEventListener('release',()=>{lock=null;}); } }catch(e){} }
-  function releaseAwake(){ if(lock){ lock.release().catch(()=>{}); lock=null; } }
-  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&R.active&&!R.paused) keepAwake(); });
+  /* ---------- keep the screen on ---------- */
+  // Primary: the Screen Wake Lock API. Fallback: a tiny looping video, which phones treat like a playing player.
+  let lock=null, wakeMode='', wakeErr='';
+  const ns=$('ns');
+  function renderScreenStatus(){
+    const el=$('screenStatus');
+    if(!cfg.keepOn){ el.textContent='Screen will follow the phone’s normal timeout.'; return; }
+    el.textContent=('wakeLock' in navigator)?'This browser supports screen wake lock. Status shows on the timer screen.':'This browser has no wake lock. The video fallback will be used.';
+  }
+  function setRunStatus(text,warn){ const el=$('rStatus'); el.textContent=text; el.classList.toggle('warn',!!warn); }
+  async function keepAwake(){
+    if(!cfg.keepOn){ setRunStatus('Screen may sleep (keep screen on is off)'); return; }
+    let ok=false;
+    if('wakeLock' in navigator){
+      try{
+        if(!lock){ lock=await navigator.wakeLock.request('screen'); lock.addEventListener('release',()=>{ lock=null; }); }
+        ok=true; wakeMode='lock';
+      }catch(e){ wakeErr=(e&&e.name)||'error'; }
+    } else wakeErr='unsupported';
+    if(ok){ stopVideo(); setRunStatus('Screen stays on · wake lock'); return; }
+    const played=await startVideo();
+    if(played){ wakeMode='video'; setRunStatus('Screen stays on · video fallback (wake lock '+wakeErr+')'); }
+    else { wakeMode=''; setRunStatus('Could not keep the screen on ('+wakeErr+'). Try opening this page directly in Chrome.',true); }
+  }
+  function releaseAwake(){ if(lock){ lock.release().catch(()=>{}); lock=null; } stopVideo(); wakeMode=''; }
+  async function startVideo(){ try{ ns.hidden=false; await ns.play(); return true; }catch(e){ ns.hidden=true; return false; } }
+  function stopVideo(){ try{ ns.pause(); }catch(e){} ns.hidden=true; }
+  ns.addEventListener('ended',()=>{ if(wakeMode==='video'){ ns.currentTime=0; ns.play().catch(()=>{}); } });
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&R.active&&!R.paused&&!R.finished) keepAwake(); });
 
   /* ---------- runner ---------- */
   const R={active:false,paused:false,sched:[],idx:0,endAt:0,leftMs:0,shownSec:null,timer:null,finished:false};
